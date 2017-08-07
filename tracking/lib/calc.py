@@ -8,9 +8,6 @@
 """
 import numpy as np
 
-
-def subtractBG(data, method = 'Median')
-
 def centroid1D(segment, origin):
     """calculates the total mass and the centroid position
 

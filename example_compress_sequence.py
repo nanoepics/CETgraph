@@ -1,12 +1,8 @@
 """
-    CETgraph.example.py
+    CETgraph.example_compress_sequence.py
     ==================================
-    This is an example of analysis code to show how to use this package
-    The content depends on the actual tests on the code.
-    To get some more inspiration, check also other example files and files in .tests
-    generally, a well prepared analysis code only handles the input and output data. All other generic calculations
-    should be done via the methods in other CETgraph modules and libraries.
-    .. lastedit:: 27/7/2017
+    This is an example for reading out a sequence of data from hdf5 file and compressing it into raw waterfall data.
+    .. lastedit:: 7/8/2017
     .. sectionauthor:: Sanli Faez <s.faez@uu.nl>
 """
 
@@ -17,7 +13,7 @@ import h5py
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 
-# Open data file in read mode
+# Open measurement file in read-only mode
 dir = 'C:/tmp/data/Tracking 5nm particle/'
 filepath = dir+'BlueParticle5nm1.hdf5'
 f = h5py.File(filepath, 'r') #open existing file in read-only mode
@@ -30,6 +26,13 @@ f = h5py.File(filepath, 'r') #open existing file in read-only mode
 # plt.show()
 
 setup = Waterfall()
-wf = setup.compressHDF(f, nframes=240, cenline=230, linewidth=20)
+wf = setup.compressHDF(f, nframes=400, cenline=230, linewidth=20)
 plt.imshow(wf)
+#print(wf.shape)
 plt.show()
+
+# to save data in a numpy array, it is good enough for 2d arrays
+out_dir = 'c:/tmp/tests/CETgraph/'
+out_file = 'wf5nm'
+print(out_dir+out_file)
+np.save(out_dir+out_file, wf)
