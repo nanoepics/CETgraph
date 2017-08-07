@@ -18,3 +18,9 @@ setup = Waterfall(fov=200, n=4, signal=50)
 wf = setup.genwf()
 plt.imshow(wf)
 plt.show()
+
+# to save data in a numpy array, it is good enough for 2d arrays
+out_dir = 'c:/tmp/tests/CETgraph/'
+out_file = 'wf_test'
+print(out_dir+out_file)
+np.save(out_dir+out_file, wf)

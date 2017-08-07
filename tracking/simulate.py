@@ -16,11 +16,10 @@ class Waterfall:
 
     Parameters
     ----------
-    size: 1D field of view in pixels
-    n: number of particles in the field of view,
+    fov: 1D field of view in pixels
+    numpar: number of particles in the field of view,
     difcon: diffusion constant (identical particles) [pixel^2/frame]
 
-    size: field of view in pixels
     psize: particle size in pixels
     signal: brightness of each particle
     noise: background random noise
@@ -30,11 +29,11 @@ class Waterfall:
     float numpy array of intensity(position,time)
     """
 
-    def __init__(self, fov = 500, n = 4, difcon = 1, signal = 10, noise = 1, psize = 8, drift = 1):
+    def __init__(self, fov = 500, numpar = 4, difcon = 1, signal = 10, noise = 1, psize = 8, drift = 1):
         self.fov = fov
         self.difcon = difcon
         self.drift = drift
-        self.numpar = n
+        self.numpar = numpar
         self.signal = signal
         self.noise = noise
         self.psize = psize

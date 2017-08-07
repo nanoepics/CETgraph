@@ -9,7 +9,7 @@
 import numpy as np
 from .lib import calc
 
-class Locations(object):
+class Locations:
     """
     :param
     :return:
