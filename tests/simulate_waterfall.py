@@ -14,7 +14,7 @@ import numpy as np
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 
-setup = Waterfall(fov=200, n=4, signal=50)
+setup = Waterfall(fov=200, numpar=4, signal=50)
 wf = setup.genwf()
 plt.imshow(wf)
 plt.show()
