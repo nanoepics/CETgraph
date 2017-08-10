@@ -1,6 +1,6 @@
 """
-simple exmaple of how to use the classes in CETgraph to generate a synthetic waterfal
-    .. lastedit:: 27/7/2017
+exmaple for tracking diffusion+drifting particles of relatively high SNR
+    .. lastedit:: 9/8/2017
     .. sectionauthor:: Sanli Faez <s.faez@uu.nl>
 """
 
@@ -10,7 +10,7 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 
 dir = 'c:/tmp/tests/CETgraph/'
-filepath = dir + 'wf_test.npy' #filepath for compressed data in form of a waterfall
+filepath = dir + 'wf_test.npy' #filepath for compressed data in form of a waterfall generated using simulate.py
 
 wf = np.load(filepath)
 wf_clean = rsbg().removeWaterfallBG(wf)
