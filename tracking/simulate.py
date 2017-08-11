@@ -29,7 +29,7 @@ class Waterfall:
     float numpy array of intensity(position,time)
     """
 
-    def __init__(self, fov = 500, numpar = 4, difcon = 1, signal = 10, noise = 1, psize = 8, drift = 1):
+    def __init__(self, fov = 500, numpar = 4, nframes = 100, difcon = 1, signal = 10, noise = 1, psize = 8, drift = 1):
         self.fov = fov
         self.difcon = difcon
         self.drift = drift
@@ -37,17 +37,30 @@ class Waterfall:
         self.signal = signal
         self.noise = noise
         self.psize = psize
-        self.nframes = 100 # number of lines (frames) to be generated
+        self.nframes = nframes # number of lines (frames) to be generated
+        self.tracks = np.zeros((numpar*nframes,5)) #array with all actual particle coordinates in the format [0-'tag', 1-'t', 2-'mass', 3-'z', 4-'width'] prior to adding noise
 
     def genwf(self):
-        positions = self.fov * np.random.rand(self.numpar)
-        wf = np.zeros((self.fov, self.nframes))
-        taxis = np.arange(self.nframes)
+        numpar = self.numpar
+        nframes = self.nframes
+        fov = self.fov
+        positions = 0.8 * fov * (np.random.rand(numpar) + 0.1) # additional factors for making sure particles are generated not to close to the two ends
+        wf = np.zeros((fov, nframes))
+        taxis = np.arange(nframes)
+        p_tag = 0
         for p in positions:  # generating random-walk assuming dt=1
             steps = np.random.standard_normal(self.nframes)
             path = p + np.cumsum(steps) * np.sqrt(self.difcon) + self.drift * taxis
-            path[path > self.fov] -= self.fov
-            wf[[np.asarray(path, dtype=int), taxis]] += self.signal
+            path[path > self.fov] -= self.fov #applying periodic boundary conditions
+            wf[[np.asarray(path, dtype=int), taxis]] += self.signal * (1+p_tag/10)
+            # nest few lines to fill in tracks in the format suitable for analysis
+            p_tag += 1
+            tags = np.array([((0*taxis)+1)*p_tag])
+            masses = tags / p_tag * self.signal * (0.9 + p_tag / 10)
+            widths = tags / p_tag * self.psize
+            trackspart = np.concatenate((tags, [taxis], masses, [path], widths), axis=0)
+            self.tracks[(p_tag-1)*nframes:p_tag*nframes,:] = np.transpose(trackspart)
+
         fft_tracks = np.fft.rfft2(wf, axes=(-2,))
         max_freq = int(self.fov / self.psize)
         fft_tracks[max_freq:, :] = 0

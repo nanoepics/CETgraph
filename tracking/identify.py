@@ -32,7 +32,7 @@ class TracksZ:
         self.step = step
         self.fov = 0
         self.nframes = 0
-        self.drift = drift
+        self.drift = int(drift)
         self.fnumber = 0
         self.locations = []
 
@@ -73,7 +73,7 @@ class TracksZ:
         :param data: waterfall data array with shape:(fov, nframes)
         :param loca: initial position of peaks in the first frame, if set to empty, method will try to find initial location
         :param vdrift: estimated particle drift per frame
-        :return: array with all particle coordinates in the format ['tag', 't', 'mass', 'z', 'width']
+        :return: array with all particle coordinates in the format [0-'tag', 1-'t', 2-'mass', 3-'z', 4-'width']
         not that time is explicitly mentioned for the __future__ cases that particle might be missing for a few frame
         """
         psize = self.psize
