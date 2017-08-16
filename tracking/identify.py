@@ -82,7 +82,7 @@ class TracksZ:
         fov, nframes = np.shape(data)
         self.fov = fov
         self.nframes = nframes
-        if not loca:
+        if not len(loca):
             particles = self.locateInitialPosition(data)
             cur_t = self.fnumber
         else:
