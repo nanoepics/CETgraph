@@ -24,7 +24,10 @@ def centroid1D(segment, origin):
     """
     scale = np.arange(0, len(segment))
     mass = sum(segment)
-    cen = np.dot(scale, segment) / mass
+    if mass > 0:
+        cen = np.dot(scale, segment) / mass
+    else:
+        cen = len(segment)/2
     width = np.sqrt(np.dot((scale - cen) ** 2, segment))
     cen += origin
     return [mass, cen, width]

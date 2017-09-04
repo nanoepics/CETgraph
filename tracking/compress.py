@@ -70,6 +70,7 @@ class Waterfall:
         for i in range(nframes):
             image = np.array(dset[:, cenline-linewidth:cenline+linewidth, i])
             wf[:,i] = np.sum(image, axis=1)
+            print(i) # counter for showing progress in compressing images into lines
 
         return wf
 

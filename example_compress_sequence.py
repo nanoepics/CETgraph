@@ -14,8 +14,8 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 
 # Open measurement file in read-only mode
-dir = 'C:/tmp/data/Tracking 5nm particle/'
-filepath = dir+'BlueParticle5nm1.hdf5'
+dir = 'D:/Matej/2017-07-05/'
+filepath = dir+'10nmAuwDNA1.hdf5'
 f = h5py.File(filepath, 'r') #open existing file in read-only mode
 
 # following lines are only necessary to find out the index of fiber position in image (cenline) and linewidth of the bright stripe
@@ -24,15 +24,18 @@ f = h5py.File(filepath, 'r') #open existing file in read-only mode
 # snap = np.array(dset[:,:,1])
 # plt.imshow(snap)
 # plt.show()
+# # #
+
 
 setup = Waterfall()
-wf = setup.compressHDF(f, nframes=400, cenline=230, linewidth=20)
-plt.imshow(wf)
-#print(wf.shape)
-plt.show()
+wf = setup.compressHDF(f, nframes=10570, cenline=0, linewidth=0)
 
 # to save data in a numpy array, it is good enough for 2d arrays
-out_dir = 'c:/tmp/tests/CETgraph/'
-out_file = 'wf5nm'
+out_dir = 'D:/Matej/170830processed/'
+out_file = 'wf_10nmAuwDNA1_f10k'
 print(out_dir+out_file)
 np.save(out_dir+out_file, wf)
+
+plt.imshow(wf)
+print(wf.shape)
+plt.show()

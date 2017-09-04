@@ -14,12 +14,14 @@ class RemoveStaticBackground:
     :param
     :return:
     """
-    def __init__(self):
+    def __init__(self, method = 'median', delay = 30):
         self.nframes = 0
+        self.bgdelay = delay
         self.fov = 0
-        self.method = 'median'
+        self.bgmethod = method
+        self.background = 0
 
-    def removeWaterfallBG(self, data, method = 'median', delay = 30):
+    def removeWaterfallBG(self, data):
         """
 
         :param data: raw data in form of a waterfall
@@ -30,18 +32,21 @@ class RemoveStaticBackground:
         [fov, nframes] = data.shape
         self.fov = fov
         self.nframes = nframes
+        delay = self.bgdelay
+        method = self.bgmethod
         wf = 0*data
         if method == 'median':
             bg = np.median(data, axis=1)
             for i in range(nframes):
                 wf[:,i] = data[:,i] - bg
-                wf[wf<0] = 0
+                wf[wf < 0] = 0
+            self.background = np.mean(bg)
         elif method == 'moving':
             for i in range(nframes):
                 bgi = np.mod((i+delay), nframes)
                 wf[:, i] = data[:, i] - data[:, bgi]
                 wf[wf < 0] = 0
-
+            self.background = np.median(bgi)
         return wf
 
     def removeNoise(self):

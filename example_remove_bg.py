@@ -1,5 +1,5 @@
 """
-simple exmaple of how to use the classes in CETgraph to generate a synthetic waterfal
+simple exmaple of how to correct backgroun and track particles on waterfall data
     .. lastedit:: 27/7/2017
     .. sectionauthor:: Sanli Faez <s.faez@uu.nl>
 """
@@ -17,7 +17,7 @@ wf_clean = rsbg().removeWaterfallBG(wf)
 wf_moving = rsbg().removeWaterfallBG(wf, method='moving')
 # plotting data and clean data
 plt.subplot(1, 3, 1)
-plt.imshow(wf, aspect='auto', cmap=plt.get_cmap('cool'))
+plt.imshow(wf, aspect='auto', cmap=plt.get_cmap('inferno'))
 plt.title('Compressed waterfall')
 plt.ylabel('z/pixels')
 plt.xlabel('frame number')
