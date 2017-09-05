@@ -33,7 +33,7 @@ class TracksZ:
         self.fov = 0
         self.nframes = 0
         self.drift = int(drift)
-        self.fnumber = 0
+        self.fnumber = 0 # parameter that holds the last frame analyzed
         self.locations = []
 
     def locateInitialPosition(self, data):
@@ -67,9 +67,103 @@ class TracksZ:
             print('Particles found in frame %d at positions' %(cur_t -1), peak_indices)
         return peak_indices
 
-    def collectTracks(self, data, loca = []):
+    def followLocalMax(self, data, loca):
         """
+        :param data: waterfall data array with shape:(fov, nframes)
+        :param loca: initial position of peaks in the first frame, if set to empty, method will try to find initial location
+        :param vdrift: estimated particle drift per frame
+        :return: array with all particle coordinates in the format [0-'tag', 1-'t', 2-'mass', 3-'z', 4-'width']
+        not that time is explicitly mentioned for the __future__ cases that particle might be missing for a few frame
+        """
+        fov, nframes = np.shape(data)
+        psize = self.psize
+        step = self.step
+        drift = self.drift
+        winsearch = np.arange(drift - psize - step, psize + drift + step)  #indices of the segment around each peak to search for max in the next frame
+        winpar = np.arange(-psize, psize)
+        winleft = np.arange(0, psize + drift + step)
+        winright = np.arange(fov - psize - step, fov)
+        self.fov = fov
+        self.nframes = nframes
+        if not len(loca):
+            print('Cannot follow tracks when initial locations are empty!')
+            return []
+        else:
+            locations = loca
+            numpar = len(loca)
+        tracks = []
+        """
+        Next comes tracing the peaks, new entries are not considered
+        The following simplification are made for the following code
+        - drift is not more than pdrift per frame
+        - when tracks overlap, the rest of the track is common for two particle
+          until the exit the field of view
 
+        To be considered in the future
+        - colocalization for particles that come too close
+        - discontinuation of tracks for particles that suddenly disappear
+
+        """
+        for t in range(nframes):
+            cur_line = data[:, t]
+            for p in range(numpar):
+                pp = locations[p]
+                if pp < psize+step:
+                    seg = cur_line[winleft]
+                    ori = 0
+                    pp = ori + np.argmax(seg)
+                    if pp > psize:
+                        seg = cur_line[pp + winpar]
+                        ori = pp + winpar[0]
+                    peak_attr = calc.centroid1D(seg, ori)
+                    pp = int(peak_attr[1])
+                    locations[p] = pp
+                    if pp > psize/2 : # only registers the location if the particle is not too close to the edge
+                        new_row = np.concatenate(([p, t], peak_attr))
+                        if not len(tracks):
+                            tracks = [new_row]
+                        else:
+                            tracks = np.concatenate((tracks, [new_row]), axis=0)
+
+                elif pp > (fov - psize - step):
+                    seg = cur_line[winright]
+                    ori = winright[0]
+                    pp = ori + np.argmax(seg)
+                    if pp < fov - psize:
+                        seg = cur_line[pp + winpar]
+                        ori = pp + winpar[0]
+                    peak_attr = calc.centroid1D(seg, ori)
+                    pp = int(peak_attr[1])
+                    locations[p] = pp
+                    if pp < fov - psize/2 : # only registers the location if the particle is not too close to the edge
+                        new_row = np.concatenate(([p, t], peak_attr))
+                        if not len(tracks):
+                            tracks = [new_row]
+                        else:
+                            tracks = np.concatenate((tracks, [new_row]), axis=0)
+
+                else:
+                    seg = cur_line[winsearch + pp]
+                    pp = pp + winsearch[0] + np.argmax(seg)
+                    seg = cur_line[winpar + pp]
+                    ori = pp + winpar[0]
+                    peak_attr = calc.centroid1D(seg, ori)
+                    pp = int(peak_attr[1])
+                    locations[p] = pp
+                    if peak_attr[0] > self.noise : # only registers if the particle mass is more than noise level
+                        new_row = np.concatenate(([p, t], peak_attr))
+                        if not len(tracks):
+                            tracks = [new_row]
+                        else:
+                            tracks = np.concatenate((tracks, [new_row]), axis=0)
+
+            if (np.mod(t, 500) == 0):
+                print(t+1, 'frames analyzed.')
+
+        return tracks
+
+    def followCentroidBlind(self, data, loca = []):
+        """
         :param data: waterfall data array with shape:(fov, nframes)
         :param loca: initial position of peaks in the first frame, if set to empty, method will try to find initial location
         :param vdrift: estimated particle drift per frame
@@ -148,7 +242,7 @@ class TracksZ:
                     particles = np.delete(particles, pp - 1)  # terminates the track if it is too close to the edge
                 else:
                     seg = cur_line[p - psize:p + psize + drift]
-                    ori = p - psize + np.argmax(seg)
+                    ori = p - psize
                     # if p > (fov - psize - 1):
                     #     particles = np.delete(particles, pp - 1)
                     # else:
