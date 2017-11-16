@@ -38,7 +38,7 @@ class DiffusionZ:
 
     [not implemented] consistently return success/failure messages regarding locating the particle
     """
-    def __init__(self, tstep = 1, pix = 1, nsteps = 12, show_plots = True):
+    def __init__(self, tstep=1, pix=1, nsteps=12, show_plots=True):
         self.tstep = tstep
         self.pix = pix
         self.show = show_plots
@@ -67,12 +67,14 @@ class DiffusionZ:
         if self.show:
             plt.subplot(1, 2, 1)
             plt.scatter(taxis, mean, marker=',')
+            plt.title('Mean position')
             plt.subplot(1, 2, 2)
             plt.scatter(taxis, msd, marker='.')
+            plt.title('Mean square displacement')
             plt.plot(taxis, fit)
             plt.show()
 
-        print(pfit)
+        print('Polyfit values', pfit)
         dif_const = pfit[0] * (self.pix**2) / self.tstep / 2
         return dif_const
 

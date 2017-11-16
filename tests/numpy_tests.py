@@ -1,6 +1,6 @@
 import numpy as np
 
-a = np.array([2,3])
-b = np.array([a,a])
-c = np.concatenate((b,[a]), axis=0)
-print(c)
+a = np.array([2.3,3.1,5.2,7.1])
+b = np.asarray(a, dtype='int')
+
+print(a, b)

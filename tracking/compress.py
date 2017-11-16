@@ -1,16 +1,16 @@
 """
     CETgraph.tracking.compress.py
     ==================================
-    These routines reduce the dimension of measured data to the minimun necessary for the analysis for example from a data cube to a waterfall (in the chromotography communities known as the chemograph)
+    These routines reduce the dimension of measured data (can be of various formats) to the minimum necessary for the tracking analysis. For example it can compress a image-data cube to a kymograph of single coordinate versus times
 
-    .. lastedit:: 7/8/2017
+    .. lastedit:: 14/11/2017
     .. sectionauthor:: Sanli Faez <s.faez@uu.nl>
 """
 import numpy as np
 #from .lib import calc
 import h5py
 
-class Waterfall:
+class Kymograph:
     """Generates z-position vs time from a measurement sequence by averaging over the axis perpendicular to the fiber
     input:
     datafile location of the hdf5 file  (in __future__ a general imagecube)
@@ -66,13 +66,13 @@ class Waterfall:
         fov = dsize[0]
         self.fov = fov
         #print(fov)
-        wf = np.zeros((fov, nframes))
+        kg = np.zeros((fov, nframes))
         for i in range(nframes):
             image = np.array(dset[:, cenline-linewidth:cenline+linewidth, i])
-            wf[:,i] = np.sum(image, axis=1)
+            kg[:,i] = np.sum(image, axis=1)
             print(i) # counter for showing progress in compressing images into lines
 
-        return wf
+        return kg
 
 
 

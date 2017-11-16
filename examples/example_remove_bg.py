@@ -9,12 +9,12 @@ import numpy as np
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 
-dir = 'c:/tmp/tests/CETgraph/'
+dir = './'
 filepath = dir + 'wf_test.npy' #filepath for compressed data in form of a waterfall
 
 wf = np.load(filepath)
-wf_clean = rsbg().removeWaterfallBG(wf)
-wf_moving = rsbg().removeWaterfallBG(wf, method='moving')
+wf_clean = rsbg().removeKymographBG(wf)
+wf_moving = rsbg().removeKymographBG(wf, method='moving')
 # plotting data and clean data
 plt.subplot(1, 3, 1)
 plt.imshow(wf, aspect='auto', cmap=plt.get_cmap('inferno'))

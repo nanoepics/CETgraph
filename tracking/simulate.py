@@ -5,12 +5,16 @@
     motion to be viewed, and eventually analyzed when necessary.
     These classes can be used for example to test the reliability of the tracking algorithms
 
-    .. lastedit:: 27/7/2017
+    .. lastedit:: 16/11/2017
     .. sectionauthor:: Sanli Faez <s.faez@uu.nl>
 """
 import numpy as np
 
 class Waterfall:
+    def __init__(self):
+        print("Class Waterfall has been renamed to class Kymograph.")
+
+class Kymograph:
     """Generates z-position vs time for a group of particles as they go with
     normal Brownian motion and drift.
 
@@ -40,19 +44,19 @@ class Waterfall:
         self.nframes = nframes # number of lines (frames) to be generated
         self.tracks = np.zeros((numpar*nframes,5)) #array with all actual particle coordinates in the format [0-'tag', 1-'t', 2-'mass', 3-'z', 4-'width'] prior to adding noise
 
-    def genwf(self):
+    def genKymograph(self):
         numpar = self.numpar
         nframes = self.nframes
         fov = self.fov
         positions = 0.8 * fov * (np.random.rand(numpar) + 0.1) # additional factors for making sure particles are generated not to close to the two ends
-        wf = np.zeros((fov, nframes))
+        kg = np.zeros((fov, nframes))
         taxis = np.arange(nframes)
         p_tag = 0
         for p in positions:  # generating random-walk assuming dt=1
             steps = np.random.standard_normal(self.nframes)
-            path = p + np.cumsum(steps) * np.sqrt(self.difcon) + self.drift * taxis
-            path[path > self.fov] -= self.fov #applying periodic boundary conditions
-            wf[[np.asarray(path, dtype=int), taxis]] += self.signal * (1+p_tag/10)
+            path = p + np.cumsum(steps) * np.sqrt(2 * self.difcon) + self.drift * taxis
+            intpath = np.mod(np.asarray(path, dtype=int), fov)
+            kg[[intpath, taxis]] += self.signal * (1 + p_tag / 10)
             # nest few lines to fill in tracks in the format suitable for analysis
             p_tag += 1
             tags = np.array([((0*taxis)+1)*p_tag])
@@ -61,13 +65,13 @@ class Waterfall:
             trackspart = np.concatenate((tags, [taxis], masses, [path], widths), axis=0)
             self.tracks[(p_tag-1)*nframes:p_tag*nframes,:] = np.transpose(trackspart)
 
-        fft_tracks = np.fft.rfft2(wf, axes=(-2,))
+        fft_tracks = np.fft.rfft2(kg, axes=(-2,))
         max_freq = int(self.fov / self.psize)
         fft_tracks[max_freq:, :] = 0
-        wf = abs(np.fft.irfft2(fft_tracks, axes=(-2,)))
+        kg = abs(np.fft.irfft2(fft_tracks, axes=(-2,)))
         noise = np.random.randn(self.fov, self.nframes)
-        wf += noise
-        return wf
+        kg += noise
+        return kg
 
 
 class SingleFrame:
@@ -127,8 +131,8 @@ class SingleFrame:
 
     def nextRandomStep(self):
         numpar = self.numpar
-        margin = 2*self.psize #margines for keeping whole particle spread inside the frame
-        dr = np.random.normal(loc=0.0, scale=np.sqrt(self.difcon), size=(numpar, 2))
+        margin = 2*self.psize # margines for keeping whole particle spread inside the frame
+        dr = np.random.normal(loc=0.0, scale=np.sqrt(2*self.difcon), size=(numpar, 2))
         locations = self.loca[:,0:2] + dr
         for n in range(0, numpar): # checking if particles get close to the margin
             for i in [0, 1]:

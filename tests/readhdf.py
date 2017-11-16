@@ -7,8 +7,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 # Open data file in read mode
-dir = 'C:/tmp/data/Tracking 5nm particle/'
-filepath = dir+'BlueParticle5nm1.hdf5'
+dir = './../tempfiles/'
+filepath = dir+'data.hdf5'
 f = h5py.File(filepath, 'r') #open existing file in read-only mode
 ks = f.keys()
 k = next(iter(ks))
