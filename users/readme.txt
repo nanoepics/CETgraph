@@ -1,0 +1,2 @@
+- Directories in this folder are used for exchange of questions and code between active users.
+- Keep total files in each directory less than 1 MB. Large datafiles should be shared on a separate drive.
