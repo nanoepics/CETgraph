@@ -41,7 +41,7 @@ ax = tp.plot_traj(trajectoryFiltered)  # plot the trajectories
 d = tp.compute_drift(trajectoryFiltered, 15)
 d.plot() # plot the drift
 
-trajectory = tp.subtract_drift(trajectoryFiltered.copy(), d) # final trajectory without diffusion
+trajectory = tp.subtract_drift(trajectoryFiltered.copy(), d) # final trajectory without drift
 fig, ax = plt.subplots()
 fig.tight_layout() 
 ax = tp.plot_traj(trajectory) # plot all the trajectories
