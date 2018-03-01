@@ -1,5 +1,10 @@
 """
 How to read data from HDF files and find features using trackpy
+
+
+Last Edit: Sanli, 1/3/2018, commenting
+ $$$ REMOVE COMMENTS FOLLOWING THIS SIGN AFTER RESOLVING THE ISSUES
+ $$$ SaFa: In future: please add time of last edit and author of that edit inside the file
 """
 import numpy as np
 import matplotlib.pyplot as plt
@@ -59,6 +64,7 @@ imNarray = im.reset_index().values # convert it into numpy array
 pfit = np.polyfit(imNarray[:10, 0], imNarray[:10, 1], 1) # performs linear fit for the first 10 elements
 diff_const = pfit[0]/2 # diffusion constant in um^2/s
 diameter = 1000 * 2 * 4.04 / (6 * 3.1415 * 1.002 * diff_const) # diameter in nanometer assuming D in um^2/s
+#  $$$SaFa: can you also mention the other quantities used and their units? on should be viscosity and another kT, right?
 print(diameter)
 
 
