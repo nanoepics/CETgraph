@@ -80,24 +80,99 @@ class SingleFrame:
     :return: SingleFrame.loca: intended location of the particles (with sub-pixel resolution)
              SingleFrame.genImage: an image with specified noise and particles displaced accordingly
     """
-    def __init__(self, fov = [300, 200], n = 4, difcon = 1, signal = 10, noise = 1, psize = 8):
+    def __init__(self, fov = [300, 200], numpar = None, difcon = 1, signal = 10, noise = 1, psize = 8, useRandomIntensity = True, numberPerSpecies = [None], signalPerSpecies = [None], pixelSizePerSpecies = [None], staticNoise = 0.0):
         # camera and monitor parameters
         self.xfov, self.yfov = fov
         # simulation parameters
         self.difcon = difcon # Desired diffusion constant in pixel squared per frame
-        self.numpar = n # Desired number of diffusing particles
+        self.numpar = numpar # Desired number of diffusing particles
         self.signal = signal # brightness for each particle
         self.noise = noise # background noise
         self.psize = psize # half-spread of each particle in the image, currently must be integer
+        self.useRandomIntensity = useRandomIntensity # use a random intensity or a fixed intensity per particle
+        self.numSpecies = len(numberPerSpecies) #number of different species  (i.e. number of different intensities)
+        self.staticNoise = staticNoise # white noise to chane each frame
+        
+        if(numberPerSpecies == [None]):
+            self.numberPerSpecies = [numpar]
+        else:
+            self.numberPerSpecies = numberPerSpecies
+            
+        if(pixelSizePerSpecies == [None]):
+            self.pixelSizePerSpecies = [psize]
+        else:
+            self.pixelSizePerSpecies  = pixelSizePerSpecies         
+        
+
+        self.psize = np.int(max(max(pixelSizePerSpecies),max([8,psize])))
+        
+        
+        if(4*self.psize >= self.xfov or 4*self.psize >= self.yfov):
+            print("Particle size too large for field of view.")
+
+        if(signalPerSpecies == [None]):
+            self.signalPerSpecies = [signal]
+        else:
+            self.signalPerSpecies = signalPerSpecies
+            
+        if(numpar == None):
+            if(numberPerSpecies == [None] ):
+                self.numpar = 4 #old default value
+            else:
+                self.numpar =np.sum(self.numberPerSpecies)
+        
+        if (self.numpar != np.sum(self.numberPerSpecies)):
+            print("Sum of particles per species != number of particles. Using sum of species as number of particles instead.\n")
+            print(self.numpar)
+            print(self.numberPerSpecies)
+            self.numpar = np.sum(numberPerSpecies)
+        if (len(signalPerSpecies) != len(signalPerSpecies)):
+            print("Array lengths of number per species and different signal per species do not match")
+        self.initPSF()
         self.bg = self.genBG()
         self.initLocations()
+
+    def addWhiteNoise(self, frame = [[],[]], whiteNoise = 0.0):
+        """
+        Add white noise each step, so the noise will differ each frame.
+        """
+        if(whiteNoise > 0):
+            for i in range(self.xfov):
+                for j in range(self.yfov):
+                    frame[i][j] = np.int8(frame[i][j] + np.random.uniform(0, whiteNoise*255.0))
+        return frame
+        
+    def initPSF(self):
+        psize = self.psize
+        normpar = np.zeros((self.numpar,2*psize, 2*psize))
+        pixelSizePerParticle = []
+        
+        for i in range(self.numSpecies):
+            pixelSizePerParticle.extend(np.full(self.numberPerSpecies[i], self.pixelSizePerSpecies[i]))
+        
+        
+        for n in range(self.numpar):
+            for x in range(psize):
+                for y in range (psize):
+                    r = 2*(x**2+4*y**2)/pixelSizePerParticle[n]**2
+                    normpar[n][psize-x, psize-y] = normpar[n][psize-x, psize+y] = \
+                    normpar[n][psize+x, psize-y] = normpar[n][psize+x, psize+y] = np.exp(-r)
+        self.normpar = normpar
+        
 
     def initLocations(self):
         # initializes the random location of numpar particles in the frame. one can add more paramaters like intensity
         # and PSF distribution if necessary
         parx = np.random.uniform(0, self.xfov, size=(self.numpar, 1))
         pary = np.random.uniform(0, self.yfov, size=(self.numpar, 1))
-        pari = np.random.uniform(1, self.numpar, size=(self.numpar, 1)) * self.signal
+        pari = []
+        if (self.useRandomIntensity):
+            for i in range(self.numSpecies):
+                pari.extend(np.random.uniform(1, self.numberPerSpecies[i], size=(self.numberPerSpecies[i], 1)) * self.signalPerSpecies[i])
+        else:
+            for i in range(self.numSpecies):
+               pari.extend(np.full((self.numberPerSpecies[i],1), self.signalPerSpecies[i]))
+               
         self.loca = np.concatenate((parx, pary, pari), axis=1)
         self.loca = self.nextRandomStep()
         return self.loca
@@ -108,6 +183,7 @@ class SingleFrame:
         y = np.arange(self.yfov)
         X, Y = np.meshgrid(y, x)
         simbg = 5*self.noise+np.sin((X+Y)/self.psize)
+        simbg = self.addWhiteNoise(simbg,self.staticNoise)
         return simbg
 
     def genImage(self):
@@ -116,30 +192,43 @@ class SingleFrame:
         """
         simimage = np.random.uniform(1, self.noise, size=(self.xfov, self.yfov)) + self.bg
         psize = self.psize
-        normpar = np.zeros((2*psize, 2*psize))
-        for x in range(psize):
-            for y in range (psize):
-                r = 2*(x**2+6*y**2)/psize**2
-                normpar[psize-x, psize-y] = normpar[psize-x, psize+y] = \
-                normpar[psize+x, psize-y] = normpar[psize+x, psize+y] = np.exp(-r)
-        for n in range(0, self.numpar):
+
+        for n in range(self.numpar):
             x = np.int(self.loca[n,0])
             y = np.int(self.loca[n,1])
-            simimage[x-psize:x+psize, y-psize:y+psize] = simimage[x-psize:x+psize, y-psize:y+psize] + normpar * self.loca[n,2]
+            simimage[x-psize:x+psize, y-psize:y+psize] = simimage[x-psize:x+psize, y-psize:y+psize] + self.normpar[n] * self.loca[n,2]
 
         return simimage
+
 
     def nextRandomStep(self):
         numpar = self.numpar
-        margin = 2*self.psize # margines for keeping whole particle spread inside the frame
-        dr = np.random.normal(loc=0.0, scale=np.sqrt(2*self.difcon), size=(numpar, 2))
+        margin = 2*self.psize #margines for keeping whole particle spread inside the frame
+        dr = np.random.normal(loc=0.0, scale=np.sqrt(self.difcon), size=(numpar, 2))
         locations = self.loca[:,0:2] + dr
-        for n in range(0, numpar): # checking if particles get close to the margin
-            for i in [0, 1]:
-                if (locations[n, i] < margin) or (locations[n, i] > self.xfov-margin):
-                    locations[n, i] = locations[n, i] - 2*dr[n, i] # applying mirror b.c.
+        for n in range(numpar):
+            locations[n, 0] = np.mod(locations[n, 0]-margin, self.xfov-2*margin)+margin
+            locations[n, 1] = np.mod(locations[n, 1]-margin, self.yfov-2*margin)+margin
 
-        self.loca[:,0:2] = locations  #particle intensities are not varied between frames, only their locations
-        simimage = self.genImage()
-        return simimage
+        self.loca[:,0:2] = locations
+        return self.loca
+
+
+    def genStack(self, nframes=100):
+        """
+        Using all the above methods in this class, this method only iterates enough to create a stack of synthetic frames
+        that can be analyzed later
+
+        :param nframes: number of frames to generate
+        :return: numpy array of nframes stack of brownian motion of particles with additional noise
+        """
+        numpar = self.numpar
+        data = np.zeros((self.xfov, self.yfov, nframes))
+        # tracks = np.zeros((nframes*numpar,4)) #in next version it is good to return also the actual locations next to the image stack
+        for i in range(nframes):
+            l = self.nextRandomStep()
+            data[:,:,i] = self.genImage()
+            #if i%int(nframes/10) == 0:
+                #print(str(int(i*100/nframes)) + "%")
+        return data
 
