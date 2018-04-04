@@ -25,17 +25,17 @@ import datetime                    #date stamp
 import h5py                        #import and export hdf5
 import cv2                         # export avi
 import sys                         #gives sys.exit() for debugging
-
+import pickle
 
 
 
 class Tracking:
     
-    def __init__(self,folder, particleDiameter, minimumMass, maximumMass, frameMemory, micronPerPixel,createTree = True):
+    def __init__(self,folder, particleDiameter, minimumMass, maximumMass, frameMemory, micronPerPixel,createTree = True, dataKey = None):
         
         """
         
-        There are a lot of parameters. Optional parameters will clogg, so setting will be through object
+        There are a lot of parameters. Optional parameters will clogg the function header, so setting will be through object
         
         """
         
@@ -46,6 +46,7 @@ class Tracking:
         self.minMass = minimumMass                               # minimal mass particle
         self.maxMass = maximumMass                              #maximum mass particle (intensity)
         self.maxTravelDistance  = 20                      # maximum distance travelled between frames
+        self.minimumMSD = 0                               #minimum mean square displacement for calculation D, because D is calculated for each particle individually, this parameter is not important
         self.maxFrameMemory = frameMemory                           # If particle disappears, it will be a new unique particle after this number of frames
         self.useFrames = -1                               # if < 0, all frames will be used.
         self.minimumParticleLivetime = 5                  #minimum number of frames a particle should be located. Otherwise it is deleted
@@ -59,10 +60,11 @@ class Tracking:
         self.estimatedDiameter = 100                      # (nm) estimated particle size  (only for metadata file)
         self.runs = 0                                     #will be set depending on folder names
         self.maximumExcentricity = 0.5                    #maximum excentricity of detected particles  
-        self.frames = self.loadData()                     #will be set by createDirectoryTree()
+        self.frames = self.loadData(dataKey = dataKey)                     #will be set by createDirectoryTree()
         self.frameDimensions = [0,0,0]                    #Will be set by loadData 
         self.particles   = []                             #detected particles, will be filled by detectParticles()
-        
+        self.numberOfFramesFitted = -1                     #if <0 all frames will be used.
+        self.maxLagTime = 100                             #maximum number of frames used for msd calculation
         
         if (self.cameraFPS < 0):
            exposureTime = float(self.getFromMetaData("ExposureTime", (self.currentPath +  "\\metadata.txt")))
@@ -82,6 +84,11 @@ class Tracking:
 
 
     def createDirectoryTree(self, path = "", runs = 0, foldername = "", date = ""):
+        
+        """
+        This function creates directories for the date and for each run, so the data of each run is saved.
+        """
+        
         if(path == ""):
            path = self.currentPath
         
@@ -90,14 +97,6 @@ class Tracking:
             foldername = "/tracking"
         if(date == ""):
             date = "/" + self.today
-           
-            
-        """ I think the code in this comment is not necessary:
-        for file in os.listdir(path):
-           if file.endswith("data.h5"):
-              print("Imported: " + file)
-              self.framePath = path + "\\" + file
-        """
         
 
             
@@ -110,7 +109,7 @@ class Tracking:
         
         files = os.listdir(path + foldername + date)
         
-        #get number of runs:
+        #get number of runs from directory name:
         if(runs == 0):
             for file in files:
                 if(file[3:].isdigit() and file[0:3] == 'run' and int(file[3:]) > self.runs):
@@ -127,11 +126,11 @@ class Tracking:
         return self.currentPath      
 
     
-    def loadData(self,dataKey = ""):
+    def loadData(self,dataKey = None):
 
         file = h5py.File(self.framePath, 'r') # open existing file in read-only mode
-        if(dataKey == ""):
-            key = next(iter(file.keys())) # getting the first key
+        if(dataKey == None):
+            key = next(iter(file.keys())) # getting the first key by default
         else:
             key = dataKey
         print(key + str(" dataset loaded."))
@@ -147,6 +146,7 @@ class Tracking:
             print("Wrong number of dimensions. (Colour data?)")
             print(data.shape)
             
+        #each tracking object has its own set of variables, including frames:    
         self.frames = np.array(data)
 
         print("Data loaded")
@@ -156,6 +156,9 @@ class Tracking:
 
     
         self.maxFrames = len(self.frames)
+        
+        #some sanity checks:
+        
         if(self.useFrames >= 0 and self.useFrames < self.maxFrames):
             self.maxFrames = self.useFrames
         if self.useFrames > len(self.frames):
@@ -174,19 +177,18 @@ class Tracking:
         frames = [] #this will be the frames without bg
         frames0 = self.frames.astype(np.int16) # negative values are needed, negative values are set to 0 by clip
         
-        if(self.subtractBackground == True):
-            for i in range(len(frames0)):
-                index = np.mod(i+self.removeBackgroundOffset,len(frames0))
-                if ((i%int(len(frames0)/10) == 0) and silent ):
-                    print(str(int(i*100/len(frames0))) + " %")
-                if index < 0:
-                    index = len(frames0)+index # beware '+' because index < 0
-                frames.append(np.subtract(frames0[i],frames0[index]))
-        else:
-            frames = frames0
+
+        for i in range(len(frames0)):
+            index = np.mod(i+self.removeBackgroundOffset,len(frames0))
+            if ((i%int(len(frames0)/10) == 0) and not silent ):
+                print(str(int(i*100/len(frames0))) + " %")
+            if index < 0:
+                index = len(frames0)+index # beware '+' because index < 0
+            frames.append(np.subtract(frames0[i],frames0[index]))
+
         
         frames = np.array(frames)
-        
+        #bring each pixel value below 0 back to 0:
         np.clip(frames, 0, np.amax(frames), frames)
         frames = np.uint16(frames)
         self.frames = frames
@@ -199,12 +201,14 @@ class Tracking:
         "\n" + "Using data from file: " + self.framePath + "\n\nSettings:\n"  + \
         "particle diameter (px): " + str(self.particleDiameter) +"\n" + \
         "particle diameter (bottle): " +  str(self.estimatedDiameter) +  "\n" + \
-        "minimum mass: " +  str(self.minimaleIntensiteit)+"\n" + \
+        "minimum mass: " +  str(self.minMass)+"\n" + \
+        "maximum mass: " +  str(self.maxMass)+"\n" + \
         "maximum excentricity: " + str(self.maximumExcentricity) + "\n" + \
         "maximum distance between frames (px): " + str(self.maxTravelDistance)+"\n" + \
-        "minimum distance between frames (px): " + str(self.minTravelDistance)+"\n" + \
-        "memory (frames): " + str(self.maxFramesBeforeForgettingParticle)+"\n" + \
+        "minimum distance between frames (px): " + str(self.minimumMSD)+"\n" + \
+        "memory (frames): " + str(self.maxFrameMemory)+"\n" + \
         "minimum number of frames of particle trajectory (frames): " + str(self.minimumParticleLivetime)+"\n" + \
+        "max lag time ( rames): " + str(self.maxLagTime) + \
         "number of frames used (frames): " + str(self.useFrames)+"\n" + \
         "number of frames of full data (frames): " + str(self.frameDimensions[0])+"\n" + \
         "Image size: " + str(self.frameDimensions[1]) + 'x' + str(self.frameDimensions[2]) + "\n"+\
@@ -216,7 +220,7 @@ class Tracking:
         if(dest != "" and writeOutput):
             self.writeMetadata(metadataText, dest)
         elif(dest == "" and writeOutput):
-            self.writeMetadata(metadataText, self.currentPath)
+            self.writeMetadata(metadataText, self.currentPath + "/metadata.txt")
         return metadataText
         
         
@@ -261,7 +265,9 @@ class Tracking:
            "number of detected and kept particles: " + str(links['particle'].nunique()) + "\n"
            self.writeMetadata(metadataText)
            
-           
+           """
+           plot the mass versus size and plot the trajectories of filtered links:
+           """ 
            plt.figure()
            figure = plt.gcf()
            tp.mass_size(links.groupby('particle').mean())
@@ -274,7 +280,7 @@ class Tracking:
            figure.savefig(self.currentPath + '/trajectories' + str(self.runs) + '.pdf')
            plt.show(figure)
            
-
+       #if after filtering no particles are left, throw a warning:
        if(links['particle'].nunique() == 0 ):
           print("Too few particles left")
           self.writeMetadata(metadataText  + "\n\nAll partiles filtered \n")
@@ -287,15 +293,26 @@ class Tracking:
        
        
     
-    def detectParticles(self, maxFrames = 0):
+    def detectParticles(self, maxFrames = 0, silent = False):
         if(maxFrames == 0):
             maxFrames = self.maxFrames
         self.particles = tp.batch(self.frames[:maxFrames],self.particleDiameter,minmass=self.minMass)
         
-        
+        if(not silent):
+            fig, ax = plt.subplots()
+            ax.hist(self.particles['mass'], bins=20)
+            ax.set(xlabel='mass', ylabel='count')
+            plt.savefig(self.currentPath + '/massDistribution_run' + str(self.runs) + '.pdf')
+        return
 
     def showDetectedParticles(self, frameNumber = 0, path = "", saveImages = True, showImages = True):
+        """
+        function for diagnostic purposes: it outputs an annotated image of detected particles and some 
+        plots. It outputs a mass distribution of a single frame (as specified in header) and the decimal 
+        value of estimated x and y positions of found particles. If This distribution is not homogeneously 
+        distributed, noise is too ofted detected as particle.
         
+        """ 
         if(path == ""):
             path = self.currentPath
         
@@ -305,41 +322,62 @@ class Tracking:
             plt.figure()
             figure = plt.gcf()
             tp.annotate(particles, self.frames[frameNumber])
-            figure.savefig(path + '/detectedParticles_run' + str(self.runs) + '.png')
+            figure.savefig(path + '/detectedParticles_run' + str(self.runs) + "_frame_" + str(frameNumber) + '.png')
             plt.show(figure)
             
             fig, ax = plt.subplots()
             ax.hist(particles['mass'], bins=20)
             ax.set(xlabel='mass', ylabel='count')
-            plt.savefig(path + '/massDistribution_run' + str(self.runs) + '.pdf')
+            plt.savefig(path + '/massDistribution_run' + str(self.runs) + "_frame_" + str(frameNumber) + '.pdf')
             
             plt.figure()
             figure = plt.gcf()
             tp.subpx_bias(particles)
-            plt.savefig(path + '/subPixelBias_run' + str(self.runs) + '.pdf')
+            plt.savefig(path + '/subPixelBias_run' + str(self.runs) + "_frame_" + str(frameNumber) + '.pdf')
             plt.show(figure)
         return particles
         
     
     
     
-    def calculateDiffusion(self):
-        self.msdData = tp.imsd(self.links, self.micronPerPixel, self.cameraFPS)
+    def calculateDiffusion(self, maxLagTime = None):
+        
+        """ 
+        The diffusion is calculated by slicing the data in slices of length maxLagTime and fitting 
+        the mean square displacement to (At)^n. n should be approximately 1 and A  = 4D.
+        
+        This function also stores the fitted data (fitted power, diffusion constant, particle diameter)
+        per particle in different lists for future use. 
+        """
+        if(maxLagTime == None):
+            maxLagTime = self.maxLagTime
+        else:
+            self.maxLagTime = maxLagTime
+            
+            
+        self.msdData = tp.imsd(self.links, self.micronPerPixel, self.cameraFPS, max_lagtime = maxLagTime)
         self.fits = []
         self.diffusionConstants = []
         self.particleDiameters = []
         self.fittedPower = []
        
+        #deletes null and nan values, and minimumMSD check:
+        
         for i in self.msdData.iloc[0,:].index.values:
-            temp = self.msdData[i][np.isfinite(self.msdData[i]) & self.msdData[i] > 0]
-            self.fits.append(tp.utils.fit_powerlaw(temp, plot=False).as_matrix().tolist() )
-        for e in self.fits: 
-            self.fittedPower.extend([e[0][0]])
-            self.diffusionConstants.extend([4*e[0][1]])
-            self.particleDiameters.extend([ (4*self.boltzmannConstant*self.temperature)/(3*math.pi*self.viscosity*100*e[0][1])])
+            temp = self.msdData[i][np.isfinite(self.msdData[i]) & self.msdData[i] > self.minimumMSD]
+            if((not temp.isnull().values.any()) and (len(temp) > 0)):
+                self.fits.append([i,tp.utils.fit_powerlaw(temp, plot=False).as_matrix().tolist()] )
+        for e in self.fits:
+            if((not np.isnan(e[1][0][0])) and (not np.isnan(e[1][0][1])) ):
+                self.fittedPower.extend([e[1][0][0]])
+                self.diffusionConstants.append([e[0],4*e[1][0][1]])
+                self.particleDiameters.append([e[0],(4*self.boltzmannConstant*self.temperature)/(3*math.pi*self.viscosity*100*e[1][0][1])])
+        self.diffusionConstants = np.array(self.diffusionConstants)
+        self.particleDiameters = np.array(self.particleDiameters)
         
 
     def saveAVIData(self, data, dest, format = 'XVID',colour = False):
+        #this function saves data as xvid avi format
         if "." not in dest:
             dest = dest + ".avi"
         if(np.amax(data) > 255):
@@ -357,6 +395,11 @@ class Tracking:
 
 
     def getFromMetaData(self, text,path):
+        """
+        This function searches a metadata file generated by camera script
+        in path to get stored data form that file. return -1 if failed, but file exists and -9999 if
+        file does not exist:
+        """
         try:
             f = open(path, "r")
             input =  f.read().split("\n")
@@ -378,6 +421,9 @@ class Tracking:
     
     
     def writeMetadata(self, text, dest = ""):
+        """
+        write to text file, metadata.txt by default
+        """
         if(dest == ""):
             dest = self.currentPath + "/metadata.txt"
             
@@ -387,9 +433,14 @@ class Tracking:
             f.close()
         except:
             print("Cannot make metadata file.")
+        return
     
-    
-    def generateMiscPlots(self):
+    def generateMiscPlots(self, binsize = 20, plotMinDiameter = 0, plotMaxDiameter = 1000):
+        
+        """
+        This function generated various plots and writes tracking parameters to metadata.txt.
+        """
+        
         plt.figure()
         figure = plt.gcf()
         figure = self.drift.plot()
@@ -406,22 +457,42 @@ class Tracking:
         trackpyFit=tp.utils.fit_powerlaw(powerLaw)
         figure.savefig(self.currentPath + '/powerLawFit' + str(self.runs) + '.pdf')
         
-        n, bins, patches = plt.hist(self.diffusionConstants, 10)
+        
+        n, bins, patches = plt.hist(self.diffusionConstants[:,1], binsize)
+        figure = plt.gcf()
         plt.xlabel('D')
         plt.ylabel('Count')
         plt.title('Histogram of Diffusion Constants')
         plt.grid(True)
+        figure.savefig(self.currentPath + '/diffusionConstants' + str(self.runs) + '.pdf')
         plt.show()
         
         
-        n, bins, patches = plt.hist(self.particleDiameters, 10)
+        n, bins, patches = plt.hist(self.particleDiameters[:,1], binsize)
+        figure = plt.gcf()
         plt.xlabel('a (nm)')
         plt.ylabel('Count')
         plt.title('Histogram of Diameters')
         plt.grid(True)
+        figure.savefig(self.currentPath + '/diameters' + str(self.runs) + '.pdf')
+        plt.show()
+        
+        n, bins, patches = plt.hist([e for e in self.particleDiameters[:,1] if ((e >= plotMinDiameter) and (e <= plotMaxDiameter))], binsize)
+        figure = plt.gcf()
+        plt.xlabel('a (nm)')
+        plt.ylabel('Count')
+        plt.title('Histogram of Diameters')
+        plt.grid(True)
+        figure.savefig(self.currentPath + '/diametersZoom' + str(self.runs) + '.pdf')
         plt.show()
 
 
+        fig, ax = plt.subplots()
+        ax.hist(self.links['mass'], bins=20)
+        ax.set(xlabel='mass', ylabel='count')
+        plt.grid(True)
+        plt.savefig(self.currentPath + '/massDistributionFiltered_run' + str(self.runs) + '.pdf')
+        plt.show()
 
         self.writeMetadata("\n" + str(trackpyFit))
         print(str(trackpyFit))
@@ -431,6 +502,48 @@ class Tracking:
         
         diameter = (4*self.boltzmannConstant*self.temperature)/(3*math.pi*self.viscosity*100*trackpyFit[0][1])
         print("Particle diameter: " + str(diameter) + " nm" )
+        
+        np.savetxt(self.currentPath +"\\diffusionConstant.csv", self.diffusionConstants, delimiter=",")
+        np.savetxt(self.currentPath +"\\particleDiameters.csv", self.particleDiameters, delimiter=",")
+        
+        f = open(self.currentPath + "\\trackingPickleObject.pyc", "wb")
+        pickle.dump(self,f)
+        f.close()
+        
+        
+        masslist = []
+        #print(trackingObject.links.groupby('particle').mean())
+        massDiffusion = []
+        massDiameter = []
+        for particleID in list(self.msdData):
+            mass = self.links.loc[self.links['particle'] == particleID]['mass'].mean()
+            if(particleID in self.diffusionConstants[:,0]):
+                masslist.append([particleID,mass])
+                indexOfID=list(self.diffusionConstants[:,0]).index(particleID)
+                diffusion = self.diffusionConstants[:,1][indexOfID]
+                diameter = self.particleDiameters[:,1][indexOfID]
+                massDiffusion.append([mass,diffusion])
+                massDiameter.append([mass,diameter])
+        massDiffusion = np.array(massDiffusion)    
+        massDiameter = np.array(massDiameter)
+        
+        plt.scatter(massDiffusion[:,0],massDiffusion[:,1])
+        figure = plt.gcf()
+        plt.xlabel("Mass")
+        plt.ylabel("Diffusion Constant")
+        plt.title("Diffusion versus Mass")
+        plt.grid(True)
+        figure.savefig(self.currentPath + '/MassDiffusionScatterplot' + str(self.runs) + '.pdf')    
+        plt.show()
+        
+        plt.scatter(massDiameter[:,0],massDiameter[:,1])
+        figure = plt.gcf()
+        plt.xlabel("Mass")
+        plt.ylabel("Particle Diameter (nm)")
+        plt.title("Diameter versus Mass")
+        plt.grid(True)
+        figure.savefig(self.currentPath + '/MassDiameterScatterplot' + str(self.runs) + '.pdf')    
+        plt.show()
         
         self.writeMetadata("\nParticle diameter (nm): " + str(diameter))
         return diameter
