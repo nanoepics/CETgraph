@@ -31,7 +31,7 @@ import pickle
 
 class Tracking:
     
-    def __init__(self,folder, particleDiameter, minimumMass, maximumMass, frameMemory, micronPerPixel,createTree = True, dataKey = None):
+    def __init__(self,folder, particleDiameter, minimumMass, maximumMass, frameMemory, micronPerPixel,createTree = True, dataKey = None, h5name = "data.h5",FPS = -1):
         
         """
         
@@ -40,7 +40,7 @@ class Tracking:
         """
         
         self.currentPath = folder                         #path to data folder
-        self.framePath = self.currentPath + "\\data.h5"   #path to hdf5 file
+        self.framePath = self.currentPath + "\\" +h5name   #path to hdf5 file
         self.removeBackground = False                     #subtractBG or not (for metadatafile)
         self.particleDiameter = 21                        # particle diameter in pixels
         self.minMass = minimumMass                               # minimal mass particle
@@ -50,7 +50,7 @@ class Tracking:
         self.maxFrameMemory = frameMemory                           # If particle disappears, it will be a new unique particle after this number of frames
         self.useFrames = -1                               # if < 0, all frames will be used.
         self.minimumParticleLivetime = 5                  #minimum number of frames a particle should be located. Otherwise it is deleted
-        self.cameraFPS = -1                               #camera FPS if < 0, script will try to get from metadata file
+        self.cameraFPS = FPS                             #camera FPS if < 0, script will try to get from metadata file
         self.micronPerPixel = micronPerPixel                    #pixel size in um
         self.removeBackgroundOffset = 20                  # subtracts the image n frames before the current frame to remove bg
         self.today = datetime.datetime.now().strftime("%d-%m-%y") #get date
@@ -65,6 +65,8 @@ class Tracking:
         self.particles   = []                             #detected particles, will be filled by detectParticles()
         self.numberOfFramesFitted = -1                     #if <0 all frames will be used.
         self.maxLagTime = 100                             #maximum number of frames used for msd calculation
+        self.removeLastFrames = True #remove last frames to prevent artefacts from background removal
+        
         
         if (self.cameraFPS < 0):
            exposureTime = float(self.getFromMetaData("ExposureTime", (self.currentPath +  "\\metadata.txt")))
@@ -74,6 +76,8 @@ class Tracking:
            else:
                self.exposureTime = exposureTime
            self.cameraFPS = 1000000.0/self.exposureTime
+        else:
+            self.exposureTime = 1000000.0/self.cameraFPS
         """
         create a folder for each run. If a different folder should be used, turn createTree off
         and manually call the createDirectoryTree function
@@ -191,7 +195,10 @@ class Tracking:
         #bring each pixel value below 0 back to 0:
         np.clip(frames, 0, np.amax(frames), frames)
         frames = np.uint16(frames)
-        self.frames = frames
+        if(self.removeLastFrames):
+            self.frames = frames[:-self.removeBackgroundOffset]
+            self.frameDimensions = frames.shape
+        
         return frames
 
 
@@ -370,7 +377,7 @@ class Tracking:
         for e in self.fits:
             if((not np.isnan(e[1][0][0])) and (not np.isnan(e[1][0][1])) ):
                 self.fittedPower.extend([e[1][0][0]])
-                self.diffusionConstants.append([e[0],4*e[1][0][1]])
+                self.diffusionConstants.append([e[0],0.25*e[1][0][1]])#0.25 because of a == 4D
                 self.particleDiameters.append([e[0],(4*self.boltzmannConstant*self.temperature)/(3*math.pi*self.viscosity*100*e[1][0][1])])
         self.diffusionConstants = np.array(self.diffusionConstants)
         self.particleDiameters = np.array(self.particleDiameters)
@@ -435,11 +442,16 @@ class Tracking:
             print("Cannot make metadata file.")
         return
     
-    def generateMiscPlots(self, binsize = 20, plotMinDiameter = 0, plotMaxDiameter = 1000):
+    def generateMiscPlots(self, binsize = 20, plotMinDiameter = 0, plotMaxDiameter = 1000,maxLagTime = None):
         
         """
         This function generated various plots and writes tracking parameters to metadata.txt.
         """
+        if(maxLagTime == None):
+            maxLagTime = self.maxLagTime
+        else:
+            self.maxLagTime = maxLagTime
+        
         
         plt.figure()
         figure = plt.gcf()
@@ -447,7 +459,7 @@ class Tracking:
         plt.savefig(self.currentPath + '/drift' + str(self.runs) + '.pdf')
         plt.show(figure)
         
-        powerLaw = tp.emsd(self.links, self.micronPerPixel, self.cameraFPS)
+        powerLaw = tp.emsd(self.links, self.micronPerPixel, self.cameraFPS,max_lagtime = maxLagTime)
         
         
         plt.figure()

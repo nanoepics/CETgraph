@@ -24,19 +24,20 @@ import h5py
 import cv2
 import pickle
 import sys #gives sys.exit() for debugging
-from tracking import Tracking
+from track import Tracking
 
 
 
-folder  = "D:\\Onderzoek\\data\\19-03-2018\\run4" 
+folder  = "D:\\Onderzoek\\data\\19-03-2018\\run10" 
+folder = "D:\\Onderzoek\\python\\simulation\\runs\\05-04-18\\run31\\DeltaSignal_1_noise_10"
 
 """
 create a tracking object.
 tracking(path to data, particle diameter (px), minmass, maxmass, 
 min number of frames for detected particle,micron per pixel)
 """
-
-trackingObject = Tracking(folder, 31, 1200, 4000, 5, 0.225664)
+#trackingObject = Tracking(folder, 31, 2000, 4000, 10, 0.225664, h5name = "simulated data.h5")
+trackingObject = Tracking(folder, 31, 1750, 4000, 10, 0.225664, h5name = "simulated data.h5", FPS = 40)
 folder = trackingObject.currentPath
 trackingObject.saveImage(trackingObject.frames[0], folder + "/firstFrame.png")
 
@@ -46,7 +47,7 @@ trackingObject.saveAVIData(trackingObject.frames, folder + "/subtractedBackgroun
 trackingObject.showDetectedParticles()
 
 trackingObject.maxFrames = -1 #max frames used. if -1 all frames will be used.
-trackingObject.minimumMSD = 0.2 #minimum mean square displacement. Use to prevent stuck particles.
+trackingObject.minimumMSD = 0.5 #minimum mean square displacement. Use to prevent stuck particles.
 trackingObject.detectParticles() #diagnostic function. plot detected particles of first frame
 trackingObject.linkParticles() #link different frames
 
