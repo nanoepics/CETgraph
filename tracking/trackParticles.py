@@ -36,6 +36,19 @@ if(len(sys.argv)<2):
 else:
    folder = sys.argv[1]
 
+if(folder[-3:] == ".h5"):
+   print(folder)
+   h5name = folder.split("\\")[-1]
+   a = folder.split("\\")[:-1]
+   b = ["\\"]*len(a)
+   list = np.array([[a[i],b[i]] for i in range(len(a))]).flatten()
+   print(list)
+   folder = "".join([i for i in list])
+   print(folder)
+else:
+   h5name = "data_withoutBG.h5"
+
+
 
 
 """
@@ -57,7 +70,7 @@ else:
    subframes = [None, None]
    numberOfFrames = -1
 
-trackingObject = Tracking(folder, -1, -1,-1,3, -1, h5name = "data_withoutBG.h5", FPS = -1 ,useFrames = -1, subframes=subframes,createTree = False)
+trackingObject = Tracking(folder, -1, -1,-1,3, -1, h5name = h5name, FPS = -1 ,useFrames = -1, subframes=subframes,createTree = False)
 if(numberOfFrames < 0):
    numberOfFrames = len(trackingObject.frames)
    beginFrame = 0
@@ -65,6 +78,7 @@ if(numberOfFrames < 0):
 
 trackingObject.createDirectoryTree(path = folder)
 folder = trackingObject.currentPath
+
 #trackingObject.saveImage(trackingObject.frames[0], folder + "/firstFrameRaw.png")
 
 
@@ -85,7 +99,7 @@ trackingObject.linkParticles( silent = False) #link different frames
 
 
 trackingObject.calculateDiffusion(maxLagTime = 5) #maxLagTime is how many frames will be used per fit
-trackingObject.calculateMobility()
+trackingObject.calculateMobility(direction = 'y')
 trackingObject.generateMiscPlots(binsize = 25, silent = False) #generate histograms of data
 trackingObject.getSettings()   #write to metadata
 trackingObject.writeMetadata("\nFrames: " + str(beginFrame) + " to " + str(endFrame) + "\n", trackingObject.currentPath + "/metadata.txt")

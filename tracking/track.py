@@ -20,7 +20,7 @@ import matplotlib.pyplot as plt    #plotting
 import trackpy as tp               #trackpy
 import pims                        #import output image stackss
 import math                        #maths utils
-from PIL import Image              # io images
+#from PIL import Image              # io images
 import os                          #io
 import datetime                    #date stamp
 import h5py                        #import and export hdf5
@@ -28,6 +28,7 @@ import cv2                         # export avi
 import sys                         #gives sys.exit() for debugging
 import pickle
 from collections import Counter    #used to count #frames in which individual particles occur: used for weighted fit
+from PIL import Image
 
 import scipy.signal
 
@@ -41,7 +42,7 @@ class Tracking:
         There are a lot of parameters. Optional parameters will clogg the function header, so setting will be through object
         
         """
-        mpl.use('Agg')
+        #mpl.use('Agg')
 
         print("Initialize parameters")
         print(minimumMass)
@@ -343,155 +344,156 @@ class Tracking:
        return links
        
     
-
-def calculateMobility(self, direction = 'y',useFFT = True, frequency = 0.5, window = 0.1):
-   print('Calculating mobility in ' + direction + '-direction')
-   lowFrequencyFilter = int(frequency*self.cameraFPS - window)
-   highFrequencyFilter = int(frequency*self.cameraFPS + window)
-   periodInFrames = self.cameraFPS/frequency
-
-
-   drift = tp.compute_drift(self.linksWithoutDriftCorrection)
-
-   particleVelocity = np.diff(drift[direction])-np.diff(drift[direction]).mean()
-   filteredParticleVelocity = scipy.signal.savgol_filter(particleVelocity,25,3)
-   particleSpeed = abs(particleVelocity)
-   
-   outputText = 'Mean mobility ' + direction +  '-direction: ' + str(particleSpeed.mean()) + ' px/frame\n' + \
-   'Mean mobility ' + direction +  '-direction: ' + str(particleSpeed.mean()*self.cameraFPS*self.micronPerPixel) + ' um/s\n\n'
-   print(outputText)
-   self.writeMetadata(outputText)
-
-   drift = drift[direction]-drift[direction].mean()
-   plt.figure()
-   plt.plot(drift)
-   plt.show()
-
-
-   FFTDrift = np.fft.fft(drift)/len(drift)
-   frequencies = np.fft.fftfreq(len(FFTDrift),1/self.cameraFPS)
-   print(frequencies)
-   
-   plt.figure()
-   plt.plot(frequencies)
-   plt.show()
-   
-   if(window > 0):
-      for i, f in enumerate(frequencies):
-          if(np.abs(f) < frequency - window or np.abs(f) > frequency + window):
-              FFTDrift[i] = 0
-      
-      
-   filteredDrift = np.fft.ifft(len(drift)*FFTDrift) 
-   FFTDrift = np.abs(FFTDrift)
-   amplitudeFFT = sum(FFTDrift)
-   
-   plt.figure()
-   figure = plt.gcf()
-   plt.ylabel('Displacement (px)')
-   plt.xlabel('frame');
-   plt.plot(filteredDrift)
-   figure.savefig(self.currentPath + '/FourierFiltedDrift' + str(self.runs) + '.pdf')
-   
-   
-   
-   amplitude = math.sqrt(2*abs(filteredDrift*filteredDrift).mean())
-   
-
-   outputText = 'Data from FFT:\nMean mobility ' + direction +  '-direction: ' + str(4*frequency*amplitude) + ' px/s\n' + \
-   'Mean mobility ' + direction +  '-direction: ' + str(4*frequency*amplitude*self.micronPerPixel) + ' um/s\n' +\
-   'Use FFT: ' + str(useFFT) + '\n' + \
-   'Frequency: ' + str(frequency) + ' Hz \n' + \
-   'minimum frequency: ' + str(frequency-window/self.cameraFPS) + ' Hz \n' + \
-   'maximum frequency: ' + str(frequency + window/self.cameraFPS) + ' Hz \n' + \
-   'peak height ifft: ' + str(amplitude) + '\n'
-   print(outputText)
-   self.writeMetadata(outputText)
-   
-   
-   plt.figure()
-   figure = plt.gcf()
-   plt.ylabel('Amplitude')
-   plt.xlabel('frequency (Hz)');
-   plt.plot(frequencies,FFTDrift)
-   figure.savefig(self.currentPath + '/powerSpectrum' + str(self.runs) + '.pdf')
-   
-   plt.figure()
-   figure = plt.gcf()
-   plt.ylabel('Amplitude')
-   plt.xlabel('frequency (Hz)');
-   plt.plot(frequencies[:200],FFTDrift[:200])
-   figure.savefig(self.currentPath + '/powerSpectrumZoom' + str(self.runs) + '.pdf')
-
- 
-   
-   
-
-   # calculate mobility for each individual particle.
-
-   links = self.linksWithoutDriftCorrection
-   meanDrift = np.diff(tp.compute_drift(links)[direction]).mean()
-   yvalues = links[['frame','particle',direction]].groupby('particle')[direction].apply(list)
-   listOfFrames =  links[['frame','particle',direction]].groupby('particle')['frame'].apply(list)
-   particleVelocity = []
-   particleSpeed = []
-   self.averageMobilities = []
-   framesJump = []
-   self.averageMobilityWeights = []
-   
-
-   
-   for i in yvalues.index.values:
-      framesJump.append(np.diff(listOfFrames[i]))
-      particleVelocity.append(np.diff(yvalues[i]) - meanDrift)
-      for j in range(len(particleVelocity[-1])):
-         particleVelocity[-1][j] = particleVelocity[-1][j]/framesJump[-1][j]
-      if(len(particleVelocity[-1]) > 2):
-         particleSpeed.append(abs(particleVelocity[-1]))
-         self.averageMobilities.append(particleSpeed[-1].mean()*self.cameraFPS*self.micronPerPixel)
-         self.averageMobilityWeights.append(len(particleSpeed[-1]))
-   
+    def calculateMobility(self, direction = 'y',useFFT = True, frequency = 0.5, window = 0.2):
+       print('Calculating mobility in ' + direction + '-direction')
+       lowFrequencyFilter = int(frequency*self.cameraFPS - window)
+       highFrequencyFilter = int(frequency*self.cameraFPS + window)
+       periodInFrames = self.cameraFPS/frequency
     
-   filteredDrift = scipy.signal.savgol_filter(drift,25,3)
-   for i in range(len(filteredDrift)):
-      filteredDrift[i] = filteredDrift[i]*(i/len(filteredDrift))*(filteredDrift[0]-filteredDrift[-1])
-   peaks = scipy.signal.find_peaks_cwt(filteredDrift,range(20,50),noise_perc = 0, min_length = 2,min_snr = 0.1)
-   offset = 0
-   for peak in peaks:
-       offset = offset + peak%periodInFrames
-   offset = offset/len(peaks)
-   print(offset)
+    
+       drift = tp.compute_drift(self.linksWithoutDriftCorrection)
+    
+       particleVelocity = np.diff(drift[direction])-np.diff(drift[direction]).mean()
+       filteredParticleVelocity = scipy.signal.savgol_filter(particleVelocity,25,3)
+       particleSpeed = abs(particleVelocity)
        
-   
-   print(np.array(np.arange(offset,10*periodInFrames+offset,periodInFrames)).tolist())
-      
-      
-   plt.figure()
-   plt.plot(filteredDrift,'-D', markevery=peaks.tolist() )
-   plt.show()
-   plt.figure()
-   plt.plot(filteredDrift,'-D', markevery=[int(i) for i in np.arange(offset,15*periodInFrames+offset,periodInFrames)])
-   plt.show()
+       outputText = 'Mean mobility ' + direction +  '-direction: ' + str(particleSpeed.mean()) + ' px/frame\n' + \
+       'Mean mobility ' + direction +  '-direction: ' + str(particleSpeed.mean()*self.cameraFPS*self.micronPerPixel) + ' um/s\n\n'
+       print(outputText)
+       self.writeMetadata(outputText)
+    
+       drift = drift[direction]-drift[direction].mean()
+       plt.figure()
+       plt.plot(drift)
+       plt.show()
+    
+    
+       FFTDrift = np.fft.fft(drift)/len(drift)
+       frequencies = np.fft.fftfreq(len(FFTDrift),1/self.cameraFPS)
+       
+       
+       plt.figure()
+       plt.plot(frequencies)
+       plt.show()
+       
+       if(window > 0):
+          for i, f in enumerate(frequencies):
+              if(np.abs(f) < frequency - window or np.abs(f) > frequency + window):
+                  FFTDrift[i] = 0
+          
+          
+       filteredDrift = np.fft.ifft(len(drift)*FFTDrift) 
+       FFTDrift = np.abs(FFTDrift)
+       amplitudeFFT = sum(FFTDrift)
+       
+       plt.figure()
+       figure = plt.gcf()
+       plt.ylabel('Displacement (px)')
+       plt.xlabel('frame');
+       plt.plot(filteredDrift)
+       figure.savefig(self.currentPath + '/FourierFiltedDrift' + str(self.runs) + '.pdf')
+       
+       
+       
+       amplitude = math.sqrt(2*abs(filteredDrift*filteredDrift).mean())
+       
+    
+       outputText = 'Data from FFT:\nMean mobility ' + direction +  '-direction: ' + str(4*frequency*amplitude) + ' px/s\n' + \
+       'Mean mobility ' + direction +  '-direction: ' + str(4*frequency*amplitude*self.micronPerPixel) + ' um/s\n' +\
+       'Use FFT: ' + str(useFFT) + '\n' + \
+       'Frequency: ' + str(frequency) + ' Hz \n' + \
+       'minimum frequency: ' + str(frequency-window/self.cameraFPS) + ' Hz \n' + \
+       'maximum frequency: ' + str(frequency + window/self.cameraFPS) + ' Hz \n' + \
+       'peak height ifft: ' + str(amplitude) + '\n'
+       print(outputText)
+       self.writeMetadata(outputText)
+       
+       
+       plt.figure()
+       figure = plt.gcf()
+       plt.ylabel('Amplitude')
+       plt.xlabel('frequency (Hz)');
+       plt.plot(frequencies,FFTDrift)
+       figure.savefig(self.currentPath + '/powerSpectrum' + str(self.runs) + '.pdf')
+       
+       plt.figure()
+       figure = plt.gcf()
+       plt.ylabel('Amplitude')
+       plt.xlabel('frequency (Hz)');
+       plt.plot(frequencies[:200],FFTDrift[:200])
+       figure.savefig(self.currentPath + '/powerSpectrumZoom' + str(self.runs) + '.pdf')
+    
+     
+       
+       
+    
+       # calculate mobility for each individual particle.
+    
+       links = self.linksWithoutDriftCorrection
+       meanDrift = np.diff(tp.compute_drift(links)[direction]).mean()
+       yvalues = links[['frame','particle',direction]].groupby('particle')[direction].apply(list)
+       listOfFrames =  links[['frame','particle',direction]].groupby('particle')['frame'].apply(list)
+       particleVelocity = []
+       particleSpeed = []
+       self.averageMobilities = []
+       framesJump = []
+       self.averageMobilityWeights = []
+       
+    
+       
+       for i in yvalues.index.values:
+          framesJump.append(np.diff(listOfFrames[i]))
+          particleVelocity.append(np.diff(yvalues[i]) - meanDrift)
+          for j in range(len(particleVelocity[-1])):
+             particleVelocity[-1][j] = particleVelocity[-1][j]/framesJump[-1][j]
+          if(len(particleVelocity[-1]) > 2):
+             particleSpeed.append(abs(particleVelocity[-1]))
+             self.averageMobilities.append(particleSpeed[-1].mean()*self.cameraFPS*self.micronPerPixel)
+             self.averageMobilityWeights.append(len(particleSpeed[-1]))
+       
+    
+       filteredDrift = scipy.signal.savgol_filter(drift,25,3)
+       for i in range(len(filteredDrift)):
+          filteredDrift[i] = filteredDrift[i]*(i/len(filteredDrift))*(filteredDrift[0]-filteredDrift[-1])
+       peaks = scipy.signal.find_peaks_cwt(filteredDrift,range(20,50),noise_perc = 0, min_length = 2,min_snr = 0.1)
+       offset = 0
+       for peak in peaks:
+           offset = offset + peak%periodInFrames
+       offset = offset/len(peaks)
+       print(offset)
+    
+       
+       print(np.array(np.arange(offset,10*periodInFrames+offset,periodInFrames)).tolist())
+          
+          
+       plt.figure()
+       plt.plot(filteredDrift,'-D', markevery=peaks.tolist() )
+       plt.show()
+       plt.figure()
+       plt.plot(filteredDrift,'-D', markevery=[int(i) for i in np.arange(offset,15*periodInFrames+offset,periodInFrames)])
+       plt.show()
+    
+       self.averageMobilityWeights = self.averageMobilityWeights/(np.sum(self.averageMobilityWeights))
+       
+       if(len(self.averageMobilities) > 2):
+          plt.figure()
+          n, bins, patches = plt.hist(self.averageMobilities, 35, weights = self.averageMobilityWeights)
+          figure = plt.gcf()
+          plt.xlabel('Mobility ($\mu$m/s)')
+          plt.ylabel('Count')
+          plt.title('Histogram of Mobility')
+          plt.grid(True)
+          figure.savefig(self.currentPath + '/mobilityDistribution' + str(self.runs) + '.pdf')
+    
+       
+       np.savetxt(self.currentPath +"\\mobility" + str(self.runs)+".csv", self.averageMobilities , delimiter=",")
+       np.savetxt(self.currentPath +"\\weights" + str(self.runs)+".csv", self.averageMobilityWeights , delimiter=",")
+    
+    
+       return
 
-   self.averageMobilityWeights = self.averageMobilityWeights/(np.sum(self.averageMobilityWeights))
-   
-   if(len(self.averageMobilities) > 2):
-      plt.figure()
-      n, bins, patches = plt.hist(self.averageMobilities, 35, weights = self.averageMobilityWeights)
-      figure = plt.gcf()
-      plt.xlabel('Mobility ($\mu$m/s)')
-      plt.ylabel('Count')
-      plt.title('Histogram of Mobility')
-      plt.grid(True)
-      figure.savefig(self.currentPath + '/mobilityDistribution' + str(self.runs) + '.pdf')
-
-   
-   np.savetxt(self.currentPath +"\\mobility" + str(self.runs)+".csv", self.averageMobilities , delimiter=",")
-   np.savetxt(self.currentPath +"\\weights" + str(self.runs)+".csv", self.averageMobilityWeights , delimiter=",")
 
 
-
-   return
 
        
        
@@ -521,7 +523,9 @@ def calculateMobility(self, direction = 'y',useFFT = True, frequency = 0.5, wind
         
         particles = tp.locate(self.frames[frameNumber], self.particleDiameter, minmass=self.minMass)
         particles = particles[((particles['mass'] < self.maxMass) & (particles['ecc'] < self.maximumExcentricity))]
-        
+        if(len(particles) == 0):
+            print("No particles found.")
+            return particles
         
         print('Minimum mass: ' + str(np.amin(np.array(particles['mass']))))
         print('Maximum mass: ' + str(np.amax(np.array(particles['mass']))))
@@ -533,8 +537,8 @@ def calculateMobility(self, direction = 'y',useFFT = True, frequency = 0.5, wind
                if(logarithm):
                   logframes = np.log(self.frames[frameNumber]+1)
                   maxPixelValue = np.amax(logframes)
-                  logframes  = (1.0*logframes/maxPixelValue)*4095.0
-                  logframes.astype(np.uint16) 
+                  logframes  = (1.0*logframes/maxPixelValue)*65535.0
+                  logframes = logframes.astype(np.uint16) 
                   tp.annotate(particles, logframes,invert=invert)
                else:
                   tp.annotate(particles, self.frames[frameNumber],invert=invert)
@@ -568,6 +572,8 @@ def calculateMobility(self, direction = 'y',useFFT = True, frequency = 0.5, wind
         This function also stores the fitted data (fitted power, diffusion constant, particle diameter)
         per particle in different lists for future use. 
         """
+        print("Calculating Diffusion")
+        
         if(maxLagTime == None):
             maxLagTime = self.maxLagTime
         else:
@@ -575,6 +581,7 @@ def calculateMobility(self, direction = 'y',useFFT = True, frequency = 0.5, wind
             
             
         self.msdData = tp.imsd(self.links, self.micronPerPixel, self.cameraFPS, max_lagtime = maxLagTime)
+        
         self.fits = []
         self.diffusionConstants = []
         self.particleDiameters = []
@@ -592,6 +599,7 @@ def calculateMobility(self, direction = 'y',useFFT = True, frequency = 0.5, wind
                continue
             temp2 = [temp.iloc[0]] + np.diff(temp).tolist()
             temp2 = sum(temp2)/(float(len(temp2)))
+            print(str(temp2) + " , " + str(self.minimumMSD))
             if((not temp.isnull().values.any()) and (len(temp) > 0) and (temp2 > self.minimumMSD)):
                 self.fits.append([i,tp.utils.fit_powerlaw(temp, plot=False).as_matrix().tolist()] )
                 if((not np.isnan(self.fits[-1][1][0][0])) and (not np.isnan(self.fits[-1][1][0][1])) ):
@@ -604,7 +612,12 @@ def calculateMobility(self, direction = 'y',useFFT = True, frequency = 0.5, wind
                 self.particleDiameters.append([e[0],(4*self.boltzmannConstant*self.temperature)/(3*math.pi*self.viscosity*100*e[1][0][1])])
         self.diffusionConstants = np.array(self.diffusionConstants)
         self.particleDiameters = np.array(self.particleDiameters)
-        
+        if(self.diffusionConstants == []):
+           print("Problem with diffusion constant.\n")
+           print(self.diffusionConstants )
+        print("dif constants")
+        print(self.diffusionConstants )
+        return
 
     def saveAVIData(self, data, dest, format = 'XVID', colour = False, logarithmic = False):
        if(logarithmic):
@@ -773,6 +786,8 @@ def calculateMobility(self, direction = 'y',useFFT = True, frequency = 0.5, wind
         plt.xlabel('lag time $t$');
         trackpyFit=tp.utils.fit_powerlaw(powerLaw)
         figure.savefig(self.currentPath + '/powerLawFit' + str(self.runs) + '.pdf')
+        
+        print(self.diffusionConstants )
         
         plt.figure()
         n, bins, patches = plt.hist(self.diffusionConstants[:,1], binsize)

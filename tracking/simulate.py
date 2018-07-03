@@ -81,7 +81,7 @@ class SingleFrame:
     :return: SingleFrame.loca: intended location of the particles (with sub-pixel resolution)
              SingleFrame.genImage: an image with specified noise and particles displaced accordingly
     """
-    def __init__(self, fov = [300, 200], particleDiameter = 100,temperature = None,viscosity = None,numpar = None, difcon = None, signal = 10, noise = 1, psize = 8, useRandomIntensity = True, numberPerSpecies = [None], signalPerSpecies = [None], pixelSizePerSpecies = [None], staticNoise = 0.0,FPS = None, micronPerPixel = None):
+    def __init__(self, fov = [300, 200], particleDifCon = [None],backgroundIntensity = None, particleDiameters = [None], particleDiameter = 100,temperature = None,viscosity = None,numpar = None, difcon = None, signal = 10, noise = 1, psize = 8, useRandomIntensity = True, numberPerSpecies = [None], signalPerSpecies = [None], pixelSizePerSpecies = [None], staticNoise = 0.0,FPS = None, micronPerPixel = None, electricField = [None],electrophoreticMobilityPerSpecies = [None] ,electrophoreticMobility = 0, electricFrequency = -1, signalType = 'sin'):
         # camera and monitor parameters
         self.xfov, self.yfov = fov
         # simulation parameters
@@ -96,6 +96,10 @@ class SingleFrame:
         print("Diffusion constant set on " + str(difcon) + "  pixel^2 per frame  "+ str(difcon*FPS*micronPerPixel*micronPerPixel) + "  micron^2 /s")
         
         
+        self.electricFrequency = electricFrequency
+        self.signalType = signalType.lower()
+        self.micronPerPixel = micronPerPixel
+        self.FPS = FPS
         self.difcon = difcon # Desired diffusion constant in pixel squared per frame
         self.numpar = numpar # Desired number of diffusing particles
         self.signal = signal # brightness for each particle
@@ -104,9 +108,24 @@ class SingleFrame:
         self.useRandomIntensity = useRandomIntensity # use a random intensity or a fixed intensity per particle
         self.numSpecies = len(numberPerSpecies) #number of different species  (i.e. number of different intensities)
         self.staticNoise = staticNoise # white noise to chane each frame
+        self.particleDiameters = particleDiameters        
+
+        if(particleDifCon != [None]):
+           self.particleDifCon = particleDifCon #difcon per species.
+        else:
+           self.particleDifCon = [None]*self.numSpecies
+
+        if(backgroundIntensity == None):
+            self.backgroundIntensity = 1
+        else:
+            self.backgroundIntensity = backgroundIntensity
+
+        if(particleDiameters != [None]):
+            for i, diameter in enumerate(particleDiameters):
+               self.particleDifCon[i] = (boltzmannConstant*temperature/(3*math.pi*viscosity*diameter*FPS*micronPerPixel*micronPerPixel*100))
+               
         
-        
-        
+
         if(numberPerSpecies == [None]):
             self.numberPerSpecies = [numpar]
         else:
@@ -125,7 +144,7 @@ class SingleFrame:
             print("Particle size too large for field of view.")
 
         if(signalPerSpecies == [None]):
-            self.signalPerSpecies = [signal]
+            self.signalPerSpecies = [signal]*self.numberPerSpecies
         else:
             self.signalPerSpecies = signalPerSpecies
             
@@ -142,6 +161,35 @@ class SingleFrame:
             self.numpar = np.sum(numberPerSpecies)
         if (len(signalPerSpecies) != len(signalPerSpecies)):
             print("Array lengths of number per species and different signal per species do not match")
+        
+        
+        
+        if(electricField == [None]):
+            self.electricField = [0,0]
+        else:
+            self.electricField = [1.0*i for i in electricField]
+        
+        self.electricFieldAmplitude = self.electricField[:]
+        
+        if(electrophoreticMobility == None):
+            self.electrophoreticMobility = 0
+        else:
+            self.electrophoreticMobility = electrophoreticMobility/(self.micronPerPixel*FPS)
+        
+        if(None in electrophoreticMobilityPerSpecies):
+            self.electrophoreticMobilityPerSpecies = [self.electrophoreticMobility]*self.numSpecies
+        else:
+            self.electrophoreticMobilityPerSpecies = [e/(self.micronPerPixel*FPS) for e in electrophoreticMobilityPerSpecies]
+
+        
+        
+        print("Electrophoretic mobilities: ")
+        for e in self.electrophoreticMobilityPerSpecies:
+           print(str(e) + " pixel/(frame V), " + str(e*FPS*self.micronPerPixel) + " mu/(sV) ")
+        
+        
+        
+        
         self.initPSF()
         self.bg = self.genBG()
         self.initLocations()
@@ -177,8 +225,8 @@ class SingleFrame:
     def initLocations(self):
         # initializes the random location of numpar particles in the frame. one can add more paramaters like intensity
         # and PSF distribution if necessary
-        parx = np.random.uniform(0, self.xfov, size=(self.numpar, 1))
-        pary = np.random.uniform(0, self.yfov, size=(self.numpar, 1))
+        parx = np.random.uniform(10, self.xfov-10, size=(self.numpar, 1))
+        pary = np.random.uniform(10, self.yfov-10, size=(self.numpar, 1))
         pari = []
         if (self.useRandomIntensity):
             for i in range(self.numSpecies):
@@ -188,7 +236,7 @@ class SingleFrame:
                pari.extend(np.full((self.numberPerSpecies[i],1), self.signalPerSpecies[i]))
                
         self.loca = np.concatenate((parx, pary, pari), axis=1)
-        self.loca = self.nextRandomStep()
+        self.loca = self.nextRandomStep(1)
         return self.loca
 
     def genBG(self):
@@ -196,7 +244,7 @@ class SingleFrame:
         x = np.arange(self.xfov)
         y = np.arange(self.yfov)
         X, Y = np.meshgrid(y, x)
-        simbg = 5*self.noise+np.sin((X+Y)/self.psize)
+        simbg = 5*self.noise+self.backgroundIntensity*np.sin((X+Y)/self.psize)
         simbg = self.addWhiteNoise(simbg,self.staticNoise)
         return simbg
 
@@ -215,16 +263,41 @@ class SingleFrame:
         return simimage
 
 
-    def nextRandomStep(self):
+    def nextRandomStep(self,deltat):
+        if(deltat == 0):
+            return self.loca
+        if(deltat < 0):
+            print("time step smaller than 0")
         numpar = self.numpar
         margin = 2*self.psize #margines for keeping whole particle spread inside the frame
-        dr = np.random.normal(loc=0.0, scale=np.sqrt(2*self.difcon), size=(numpar, 2))#must change this to 2sqrt?
+        temp = 0
+        dr = []
+        if(self.particleDifCon == [None, None]):
+           dr = np.random.normal(loc=0.0, scale=np.sqrt(2*deltat*self.difcon), size=(numpar, 2))
+        else:
+           for i, diffusionConstant in enumerate(self.particleDifCon):
+              dr0 = np.random.normal(loc=0.0, scale=np.sqrt(deltat*2*self.particleDifCon[i]), size=(self.numberPerSpecies[i],2))
+              for j in range(self.numberPerSpecies[i]):
+                 dr0[j][0] += deltat*self.electricField[0]*self.electrophoreticMobilityPerSpecies[i]
+                 dr0[j][1] += deltat*self.electricField[1]*self.electrophoreticMobilityPerSpecies[i]               
+              
+              if(dr == []):
+                  dr = dr0
+              else:
+                 dr = np.append(dr,dr0,axis=0)
+
+        
         locations = self.loca[:,0:2] + dr
         for n in range(numpar):
             locations[n, 0] = np.mod(locations[n, 0]-margin, self.xfov-2*margin)+margin
             locations[n, 1] = np.mod(locations[n, 1]-margin, self.yfov-2*margin)+margin
         self.loca[:,0:2] = locations
         return self.loca
+    
+        
+
+    
+    
 
 
     def genStack(self, nframes=100):
@@ -239,9 +312,79 @@ class SingleFrame:
         data = np.zeros((self.xfov, self.yfov, nframes))
         # tracks = np.zeros((nframes*numpar,4)) #in next version it is good to return also the actual locations next to the image stack
         for i in range(nframes):
-            l = self.nextRandomStep()
+            l = self.nextRandomStep(1)
             data[:,:,i] = self.genImage()
             #if i%int(nframes/10) == 0:
                 #print(str(int(i*100/nframes)) + "%")
         return data
 
+
+    def generateElectricSignal(self,timeStamp):
+            if(self.electricFrequency > 0 and self.signalType == 'sin'):
+                self.electricField[0] = self.electricFieldAmplitude[0]*np.sin(2*math.pi*timeStamp*self.electricFrequency/self.FPS) 
+                self.electricField[1] = self.electricFieldAmplitude[1]*np.sin(2*math.pi*timeStamp*self.electricFrequency/self.FPS)
+            elif(self.electricFrequency > 0 and self.signalType == 'block'):
+                self.electricField[0] = self.electricFieldAmplitude[0]*np.sign(np.sin(2*math.pi*timeStamp*self.electricFrequency/self.FPS)) 
+                self.electricField[1] = self.electricFieldAmplitude[1]*np.sign(np.sin(2*math.pi*timeStamp*self.electricFrequency/self.FPS))
+            return self.electricField
+
+    def genMultipleExposedImage(self, nframes=100, numberOfExposures = 10, exposureFrequency = 100 ):
+        """
+        This function adds every generated frame to a single frame. The particle tracks should be vislibe as 
+        tracks in the image. When used with high frequency in current, this can be used to measure EP.
+        This function should behave the same as genStack, so parhaps the functions should be merged. 
+        
+        When using this function, lower particle intensity.
+        """
+
+        numpar = self.numpar
+        
+        deltat = self.FPS/exposureFrequency
+        if(1.0-numberOfExposures*deltat<0):
+           print("Exposure time too long.")
+        
+        timeStamp = 0
+        self.electricFieldData = []
+        
+        print("Time between frames: " + str(1/self.FPS)+  " s.")
+        print("Time between exposures: " + str(deltat)+  " frames.")
+        print("Time between exposure and next frame: " + str(1-numberOfExposures*deltat)+  " frames.")
+        print("Exposure time: " + str(numberOfExposures*deltat)+  " frames. (= %f s)" % (numberOfExposures/exposureFrequency) )
+        print("Frame length: " + str(numberOfExposures*deltat)+  " frames.")
+        
+        # tracks = np.zeros((nframes*numpar,4)) #in next version it is good to return also the actual locations next to the image stack
+        if(numberOfExposures == 1): 
+           data = np.zeros((self.xfov, self.yfov))
+           for i in range(nframes):
+              l = self.nextRandomStep(1)
+              data = data +self.genImage()
+              self.generateElectricSignal(i)
+        else:
+           data = np.zeros((self.xfov, self.yfov, nframes))
+           for i in range(nframes):
+              for j in range(numberOfExposures):
+                 timeStamp += deltat
+                 l = self.nextRandomStep(deltat)
+                 data[:,:,i] = np.add(data[:,:,i],self.genImage())
+                 self.generateElectricSignal(timeStamp)
+              if(i < nframes-1):
+                 timeStamp += 1.0-numberOfExposures*deltat
+                 print(1.0-numberOfExposures*deltat)
+                 l = self.nextRandomStep(1.0-numberOfExposures*deltat)
+                 data[:,:,i+1] = self.genImage()  
+                 self.generateElectricSignal(timeStamp)
+                 if(self.electricFieldData is not []):
+                    self.electricFieldData.append(self.electricField[:])
+                 else:
+                    self.electricFieldData = self.electricField[:]
+                 print("time in frame number: " + str(timeStamp) + " time: " + str(timeStamp/self.FPS) + " s" )
+        
+        print(timeStamp)
+        minimumPixelValue = np.amin(data)
+        maximumPixelValue = np.amax(data)
+        data = 255.0*(data-minimumPixelValue)/(maximumPixelValue-minimumPixelValue)
+        data = np.uint8(data)
+        self.electricField = self.electricFieldAmplitude
+       
+        
+        return data

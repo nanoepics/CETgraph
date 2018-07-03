@@ -30,11 +30,21 @@ from track import Tracking
 
 plt.ioff()
 if(len(sys.argv)<2):
-   folder = "E:\\Peter\\simulation\\runs\\29-05-18\\run2\\ParticleDiameter40_noise_10_FPS_400"
+   folder = "C:\\Users\\Peter\\Desktop\\mobilityTest\\simulation\\runs\\03-07-18\\run54\\data.h5"
 else:
    folder = sys.argv[1]
 
-
+if(folder[-3:] == ".h5"):
+   print(folder)
+   h5name = folder.split("\\")[-1]
+   a = folder.split("\\")[:-1]
+   b = ["\\"]*len(a)
+   list = np.array([[a[i],b[i]] for i in range(len(a))]).flatten()
+   print(list)
+   folder = "".join([i for i in list])
+   print(folder)
+else:
+   h5name = "data_withoutBG.h5"
 
 """
 create a tracking object.
@@ -59,7 +69,7 @@ particleDiameter = 15
 minmass = 1000
 maxmass = 10000
 
-trackingObject = Tracking(folder, particleDiameter,minmass, maxmass,3, -1, h5name = "data_withoutBG.h5", FPS = -1 ,useFrames = -1, subframes=subframes,createTree = False)
+trackingObject = Tracking(folder, particleDiameter,minmass, maxmass,3, -1, h5name = h5name, FPS = -1 ,useFrames = -1, subframes=subframes,createTree = False)
 
 trackingObject.frames = trackingObject.frames[0:5]
 

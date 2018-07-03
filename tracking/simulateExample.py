@@ -18,23 +18,44 @@ import h5py
 import os
 import datetime
 import trackpy as tp
+import scipy.misc
+from PIL import Image
 
 
-noise = 30
-signalPerSpecies = [22,23,24,25,26]
-fov = [750,600]
+noise = 2
+signalPerSpecies = [10,10]
+fov = [250,300]
 difcon = 0
-numberOfFrames = 500
-signal = 100
-noise = 10
-psize = 45
+numberOfExposures = 5
+exposureTime = -1
+signal = 200
+noise = 2
+psize = 10
 useRandomIntensity = False
-numberPerSpecies = [1,1,1,1,1]
-pixelSizePerSpecies = [20,20,20,20,20]
+numberPerSpecies = [64,0]
+pixelSizePerSpecies = [3,3]
 staticNoise = 0.0
-FPS = 40
-micronPerPixel = 0.225664
-particleDiameter = 100
+FPS = 55
+micronPerPixel = 0.75374991
+particleDiameters = [100,100]
+electricField  = [0,3]
+electrophoreticMobility = 1
+electricFrequency = 0.5
+electrophoreticMobilityPerSpecies = [10,1]
+numberOfFrames = 200
+exposureFrequency = -1
+signalType = 'sin'
+
+
+if(exposureTime < 0):
+    exposureTime = (1/(numberOfExposures*FPS))
+
+
+if(exposureFrequency < 0):
+    exposureFrequency = 1/exposureTime
+print("Exposure time: " + str(exposureTime*numberOfExposures) + " s, time per frame: " + str(1/FPS) + " s." )
+
+
 
 detectedParticles = []
 today = datetime.datetime.now().strftime("%d-%m-%y")
@@ -74,9 +95,9 @@ for file in files:
 runs  = runs + 1
 
 currentPath = './simulation/runs/' + today + '/run' + str(runs)
-    
-os.mkdir(currentPath)
 
+os.mkdir(currentPath)
+folder = currentPath
 
 
 
@@ -84,14 +105,19 @@ def getMetadata():
     tableNumberPerSpecies = ""
     tableSignalPerSpecies = ""
     tablePixelSizePerSpecies = ""
+    tableDiameterPerSpecies = ""
+    tableElectrophoreticMobilityPerSpecies = ""
     for i in range(len(numberPerSpecies)):
         tableNumberPerSpecies = tableNumberPerSpecies +  str(numberPerSpecies[i]) + " ,"
         tableSignalPerSpecies = tableSignalPerSpecies + str(signalPerSpecies[i]) + " ,"
         tablePixelSizePerSpecies =  tablePixelSizePerSpecies +str(pixelSizePerSpecies[i]) + " ,"
-    
+        tableDiameterPerSpecies = tableDiameterPerSpecies + str(particleDiameters[i]) + " ,"
+        tableElectrophoreticMobilityPerSpecies = tableElectrophoreticMobilityPerSpecies + str(electrophoreticMobilityPerSpecies[i]) + " ,"
     tableNumberPerSpecies = tableNumberPerSpecies[:-2]
     tableSignalPerSpecies = tableSignalPerSpecies[:-2]
     tablePixelSizePerSpecies = tablePixelSizePerSpecies[:-2]
+    tableDiameterPerSpecies = tableDiameterPerSpecies[:-2]
+    tableElectrophoreticMobilityPerSpecies  = tableElectrophoreticMobilityPerSpecies [:-2]
     metadata =  "Run " + str(runs) +  ' ' + str(datetime.datetime.now()) + "\n" + \
     "Number of frames: " + str(numberOfFrames) + "\n" + \
     "Field of view: "  + str(fov[0]) + " x "+ str(fov[1]) + "\n"  + \
@@ -103,10 +129,23 @@ def getMetadata():
     "Number per species: " + tableNumberPerSpecies + "\n" + \
     "Signal per species: " + tableSignalPerSpecies + "\n" + \
     "Pixel Size per species: " + tablePixelSizePerSpecies + "\n" + \
+    "Diameters per particle: " + tableDiameterPerSpecies + "\n" + \
+    "Electrophoretic mobility per particle: " + tableElectrophoreticMobilityPerSpecies + "\n" + \
+    "Electric Field: (" + str(electricField[0]) + ", " + str(electricField[1]) + ")" + \
     "Static noise: " + str(staticNoise) + "\n" + \
+    "Electric frequency: " + str(electricFrequency) + "\n" + \
     "Micron per pixel: " + str(micronPerPixel) + "\n" + \
     "FPS: " + str(FPS) + "\n" + \
-    "particle diameter (nm): " + str(particleDiameter)
+    "Signal type: " + signalType + "\n"  + \
+    "Total exposure time: " + str(exposureTime*numberOfExposures) + "\n" + \
+    "Exposure time per exposure: " + str(exposureTime) + "\n" + \
+    "Number of exposures per frame: " + str(numberOfExposures) + "\n\n\n" + \
+    "Relevant data in inputform for track.py:\n\n" + \
+    "['ResultingFrameRate', " + str(FPS) + "]\n" + \
+    "['PixelSize', " + str(micronPerPixel) + "]\n" 
+    
+    
+    
     return metadata
 
 
@@ -118,29 +157,41 @@ initialRuns = runs
 
 
 
-folder = currentPath + "\ParticleDiameter" + str(particleDiameter)+ "_noise_" + str(noise) + "_FPS_" + str(FPS)
-os.mkdir(folder)
 
 
 
+setup = SingleFrame(fov=fov, signalType = signalType,electrophoreticMobilityPerSpecies = electrophoreticMobilityPerSpecies,electricFrequency = electricFrequency, backgroundIntensity = 0,electricField  = electricField, electrophoreticMobility = electrophoreticMobility, signal=signal, noise = noise, psize = psize, useRandomIntensity = useRandomIntensity, numberPerSpecies = numberPerSpecies, signalPerSpecies = signalPerSpecies, pixelSizePerSpecies =  pixelSizePerSpecies, staticNoise = staticNoise,FPS = FPS, micronPerPixel = micronPerPixel,particleDiameters = particleDiameters)
+#stack = setup.genStack(numberOfFrames)
+stack = setup.genMultipleExposedImage(numberOfExposures =numberOfExposures,nframes = numberOfFrames, exposureFrequency = exposureFrequency)
 
-setup = SingleFrame(fov=fov, signal=signal, noise = noise, psize = psize, useRandomIntensity = useRandomIntensity, numberPerSpecies = numberPerSpecies, signalPerSpecies = signalPerSpecies, pixelSizePerSpecies =  pixelSizePerSpecies, staticNoise = staticNoise,FPS = FPS, micronPerPixel = micronPerPixel,particleDiameter = particleDiameter)
-stack = setup.genStack(numberOfFrames)
-stack =  np.swapaxes(stack,0,2)
+np.savetxt(folder +"\\electricSignal.csv", setup.electricFieldData,delimiter=",")
+
+
+if(len(np.shape(stack))>2):
+   stack =  np.swapaxes(stack,0,2)
 difcon = setup.difcon
 writeMetadata(getMetadata(),folder=folder)
 
 with h5py.File(folder + '/data.h5', 'w') as hf:
     hf.create_dataset("Simulated data",  data=stack)
     hf.close()
+    
 
-stack =  np.swapaxes(stack,0,2)
+print(np.shape(stack))
 
-fourcc = cv2.VideoWriter_fourcc(*'XVID')
-videoFile = cv2.VideoWriter(folder + '/simulated data.avi',fourcc,FPS,(len(stack[0]),len(stack)),False)
-for i in range(np.shape(stack)[2]):
-    videoFile.write(np.uint8(stack[:,:,i]))
-videoFile.release()
+
+if(len(np.shape(stack))>2):
+   stack =  np.swapaxes(stack,0,2)
+   fourcc = cv2.VideoWriter_fourcc(*'XVID')
+   videoFile = cv2.VideoWriter(folder + '/simulated data.avi',fourcc,FPS,(len(stack[0]),len(stack)),False)
+   for i in range(np.shape(stack)[2]):
+      videoFile.write(np.uint8(stack[:,:,i]))
+   videoFile.release()
+   scipy.misc.imsave(folder + '/overexposedImage.png', np.uint8(stack[:,:,0]))
+
+elif(len(np.shape(stack))==2):
+   scipy.misc.imsave(folder + '/overexposedImage.png', np.uint8(stack))
+
 
 
 
