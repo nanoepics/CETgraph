@@ -35,7 +35,7 @@ import scipy.signal
 
 class Tracking:
     
-    def __init__(self,folder, particleDiameter, minimumMass, maximumMass, frameMemory, micronPerPixel,createTree = True, dataKey = None, h5name = "data.h5",FPS = -1,useFrames = -1, subframes = [None, None]):
+    def __init__(self,folder, particleDiameter, minimumMass, maximumMass, frameMemory, micronPerPixel,createTree = True, dataKey = None, h5name = "data.h5",FPS = -1,useFrames = -1, subframes = [None, None],signalType = None):
 
         """
         
@@ -55,8 +55,9 @@ class Tracking:
         if(particleDiameter < 0 ):
            particleDiameter = int(self.loadFromInstructionFile("Diameter", folder + "\\instructions.txt"))
            print("Particle diameter (px): " + str(particleDiameter))
-        
-
+        if(signalType == None):
+            self.signalType  = self.getFromMetaData("SignalType" , (folder +  "\\metadata.txt"))
+            print("Electric signal: " + str(self.signalType))
         self.subframes = subframes 
         if( subframes != [None,None] ):
            self.useFrames = np.amax(subframes) - np.amin(subframes)
@@ -344,7 +345,13 @@ class Tracking:
        return links
        
     
-    def calculateMobility(self, direction = 'y',useFFT = True, frequency = 0.5, window = 0.2):
+    def calculateMobility(self, direction = 'y',useFFT = True, frequency = 0.5, window = 0.3, signal = None):
+       if(signal == None):
+           signal = self.signalType
+           if(isinstance(signal,int)):
+               if(signal < 0):
+                   signal = "block"
+           print("Electric signal " + signal)
        print('Calculating mobility in ' + direction + '-direction')
        lowFrequencyFilter = int(frequency*self.cameraFPS - window)
        highFrequencyFilter = int(frequency*self.cameraFPS + window)
@@ -352,13 +359,17 @@ class Tracking:
     
     
        drift = tp.compute_drift(self.linksWithoutDriftCorrection)
-    
+       
        particleVelocity = np.diff(drift[direction])-np.diff(drift[direction]).mean()
        filteredParticleVelocity = scipy.signal.savgol_filter(particleVelocity,25,3)
        particleSpeed = abs(particleVelocity)
+       mobility = particleSpeed.mean()*self.cameraFPS*self.micronPerPixel
+       if(signal == "sin" or signal == "cos"):
+          print("Multipy mobility by pi/2 to compensate for sinusoidal signal.")
+          mobility = mobility*math.pi/2.0    
        
        outputText = 'Mean mobility ' + direction +  '-direction: ' + str(particleSpeed.mean()) + ' px/frame\n' + \
-       'Mean mobility ' + direction +  '-direction: ' + str(particleSpeed.mean()*self.cameraFPS*self.micronPerPixel) + ' um/s\n\n'
+       'Mean mobility ' + direction +  '-direction: ' + str(mobility) + ' um/s\n\n'
        print(outputText)
        self.writeMetadata(outputText)
     
@@ -384,7 +395,6 @@ class Tracking:
           
        filteredDrift = np.fft.ifft(len(drift)*FFTDrift) 
        FFTDrift = np.abs(FFTDrift)
-       amplitudeFFT = sum(FFTDrift)
        
        plt.figure()
        figure = plt.gcf()
@@ -392,19 +402,19 @@ class Tracking:
        plt.xlabel('frame');
        plt.plot(filteredDrift)
        figure.savefig(self.currentPath + '/FourierFiltedDrift' + str(self.runs) + '.pdf')
-       
-       
-       
-       amplitude = math.sqrt(2*abs(filteredDrift*filteredDrift).mean())
-       
+             
+       amplitudeFFT = math.sqrt(2*abs(filteredDrift*filteredDrift).mean())
+       mobilityFFT = 4*frequency*amplitudeFFT*self.micronPerPixel
+       if(signal == "sin" or signal == "cos"):
+           mobilityFFT = mobilityFFT*math.pi/2.0
     
-       outputText = 'Data from FFT:\nMean mobility ' + direction +  '-direction: ' + str(4*frequency*amplitude) + ' px/s\n' + \
-       'Mean mobility ' + direction +  '-direction: ' + str(4*frequency*amplitude*self.micronPerPixel) + ' um/s\n' +\
+       outputText = 'Data from FFT:\nMean mobility ' + direction +  '-direction: ' + str(4*frequency*amplitudeFFT) + ' px/s\n' + \
+       'Mean mobility ' + direction +  '-direction: ' + str(mobilityFFT) + ' um/s\n' +\
        'Use FFT: ' + str(useFFT) + '\n' + \
        'Frequency: ' + str(frequency) + ' Hz \n' + \
        'minimum frequency: ' + str(frequency-window/self.cameraFPS) + ' Hz \n' + \
        'maximum frequency: ' + str(frequency + window/self.cameraFPS) + ' Hz \n' + \
-       'peak height ifft: ' + str(amplitude) + '\n'
+       'Amplitude ifft: ' + str(amplitudeFFT) + '\n'
        print(outputText)
        self.writeMetadata(outputText)
        
@@ -433,45 +443,39 @@ class Tracking:
        meanDrift = np.diff(tp.compute_drift(links)[direction]).mean()
        yvalues = links[['frame','particle',direction]].groupby('particle')[direction].apply(list)
        listOfFrames =  links[['frame','particle',direction]].groupby('particle')['frame'].apply(list)
+       eccentricities = links[['particle','ecc']].groupby('particle')['ecc'].apply(list)
+       
+       
        particleVelocity = []
        particleSpeed = []
        self.averageMobilities = []
        framesJump = []
        self.averageMobilityWeights = []
-       
+       self.eccentricity = []
+       self.eccentricityWeights = []
     
        
        for i in yvalues.index.values:
           framesJump.append(np.diff(listOfFrames[i]))
           particleVelocity.append(np.diff(yvalues[i]) - meanDrift)
+          if(self.eccentricity is not []):
+             self.eccentricity.append(np.mean(eccentricities[i]))
+             self.eccentricityWeights.append(len(eccentricities[i]))
+          else:
+             self.eccentricity = [np.mean(eccentricities[i])]
+             self.eccentricityWeights = [len(eccentricities[i])]
+            
+            
           for j in range(len(particleVelocity[-1])):
              particleVelocity[-1][j] = particleVelocity[-1][j]/framesJump[-1][j]
           if(len(particleVelocity[-1]) > 2):
              particleSpeed.append(abs(particleVelocity[-1]))
              self.averageMobilities.append(particleSpeed[-1].mean()*self.cameraFPS*self.micronPerPixel)
+             self.eccentricity
              self.averageMobilityWeights.append(len(particleSpeed[-1]))
        
     
-       filteredDrift = scipy.signal.savgol_filter(drift,25,3)
-       for i in range(len(filteredDrift)):
-          filteredDrift[i] = filteredDrift[i]*(i/len(filteredDrift))*(filteredDrift[0]-filteredDrift[-1])
-       peaks = scipy.signal.find_peaks_cwt(filteredDrift,range(20,50),noise_perc = 0, min_length = 2,min_snr = 0.1)
-       offset = 0
-       for peak in peaks:
-           offset = offset + peak%periodInFrames
-       offset = offset/len(peaks)
-       print(offset)
-    
-       
-       print(np.array(np.arange(offset,10*periodInFrames+offset,periodInFrames)).tolist())
-          
-          
-       plt.figure()
-       plt.plot(filteredDrift,'-D', markevery=peaks.tolist() )
-       plt.show()
-       plt.figure()
-       plt.plot(filteredDrift,'-D', markevery=[int(i) for i in np.arange(offset,15*periodInFrames+offset,periodInFrames)])
-       plt.show()
+
     
        self.averageMobilityWeights = self.averageMobilityWeights/(np.sum(self.averageMobilityWeights))
        
@@ -484,10 +488,12 @@ class Tracking:
           plt.title('Histogram of Mobility')
           plt.grid(True)
           figure.savefig(self.currentPath + '/mobilityDistribution' + str(self.runs) + '.pdf')
-    
-       
+          
+          
+       np.savetxt(self.currentPath +"\\eccentricity" + str(self.runs)+".csv", self.eccentricity , delimiter=",")
+       np.savetxt(self.currentPath +"\\eccentricityWeights" + str(self.runs)+".csv", self.eccentricityWeights , delimiter=",")
        np.savetxt(self.currentPath +"\\mobility" + str(self.runs)+".csv", self.averageMobilities , delimiter=",")
-       np.savetxt(self.currentPath +"\\weights" + str(self.runs)+".csv", self.averageMobilityWeights , delimiter=",")
+       np.savetxt(self.currentPath +"\\mobilityWeights" + str(self.runs)+".csv", self.averageMobilityWeights , delimiter=",")
     
     
        return
@@ -599,7 +605,7 @@ class Tracking:
                continue
             temp2 = [temp.iloc[0]] + np.diff(temp).tolist()
             temp2 = sum(temp2)/(float(len(temp2)))
-            print(str(temp2) + " , " + str(self.minimumMSD))
+            
             if((not temp.isnull().values.any()) and (len(temp) > 0) and (temp2 > self.minimumMSD)):
                 self.fits.append([i,tp.utils.fit_powerlaw(temp, plot=False).as_matrix().tolist()] )
                 if((not np.isnan(self.fits[-1][1][0][0])) and (not np.isnan(self.fits[-1][1][0][1])) ):
@@ -615,8 +621,6 @@ class Tracking:
         if(self.diffusionConstants == []):
            print("Problem with diffusion constant.\n")
            print(self.diffusionConstants )
-        print("dif constants")
-        print(self.diffusionConstants )
         return
 
     def saveAVIData(self, data, dest, format = 'XVID', colour = False, logarithmic = False):
@@ -707,8 +711,8 @@ class Tracking:
                 element[1] = element[1].replace("'", "")
                 element[1] = element[1][:-1]
                 if(element[0] == text):
-                    return element[1]
-    
+                    return element[1].strip()
+            print("Entry not in metadata file.")
             return -1
         except:
             print("Cannot find metadata file.")
@@ -819,6 +823,9 @@ class Tracking:
         figure.savefig(self.currentPath + '/diameters' + str(self.runs) + '.pdf')
         #plt.show()
         
+        
+        
+        
         plt.figure()
         n, bins, patches = plt.hist(self.particleDiameters[:,1], binsize, weights = self.visibleInFrames)
         figure = plt.gcf()
@@ -828,6 +835,16 @@ class Tracking:
         plt.grid(True)
         figure.savefig(self.currentPath + '/diametersWeighted' + str(self.runs) + '.pdf')
         #plt.show()
+        
+        plt.figure()
+        n, bins, patches = plt.hist(self.eccentricity , weights = self.eccentricityWeights)
+        figure = plt.gcf()
+        plt.xlabel('Eccentricity')
+        plt.ylabel('Fraction')
+        plt.title('Histogram of eccentricities')
+        plt.grid(True)
+        figure.savefig(self.currentPath + '/eccentricitiesWeighted' + str(self.runs) + '.pdf')
+        
         
         plt.figure()
         n, bins, patches = plt.hist(self.visibleInFrames, binsize)
