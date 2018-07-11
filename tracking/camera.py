@@ -14,6 +14,13 @@ gain = 0
 maxFramesString = ""
 FPSString = ""
 gainString = ""
+signalString = ""
+potentialString = ""
+signalType = ""
+
+frequencyString = ""
+electricFrequency = 0
+
 subtractBackground = True
 
 
@@ -23,7 +30,7 @@ backgroundSubtractionScript = '"E:\\Peter\\python scripts\\subtractBackground.py
 trackScript = '"E:\\Peter\\python scripts\\trackParticles.py"' 
 plotScript = '"E:\\Peter\\python scripts\\plotHistogramSilent.py"' 
 
-today = datetime.datetime.now().strftime("%d-%m-%y")
+today = datetime.datetime.now().strftime("%y-%m-%d")
 
 FOV = [-1,-1]
 
@@ -50,7 +57,32 @@ if(laserCurrentString == ""):
    laserCurrentString = "89.9"
 print("Laser at " + laserCurrentString + " mA")
 laserCurrent = float(laserCurrentString)
-FPSString = input("Enter FPS (or leave blank for exposure time): ")
+
+potentialString = input("Enter electric potential (blank is 0.0): ")
+if(potentialString == ""):
+   electricPotential = 0.0
+else:
+   electricPotential = float(potentialString)
+
+signalType = input("Enter signal type (blank = block, b = block, s = sin. Enter 'b' for DC ): ").lower()
+
+if(signalType == "s" or signalType == "sin"):
+   signalType = 'sin'
+elif(signalType == "" or signalType == "b" or signalType == "block" ):
+   signalType = 'block'
+else:
+   print(signalType + " not recognized as a signal type. use 'b' or 's' " )
+
+frequencyString = input("Enter electric frequency in Hz (0 or -1 for DC): ")
+if(frequencyString == ""):
+   electricFrequency = 0
+else:
+   electricFrequency = float(frequencyString)
+
+   
+
+
+FPSString = input("Enter FPS (or leave blank for 55 Hz): ")
 maxFramesString = input("Enter maximum number of frames: ")
 XFOVString = input("Enter width of imgage in pixels (leave blank to skip, start form top left corner): ")
 YFOVString = input("Enter height of image in pixels: ")
@@ -111,7 +143,7 @@ else:
 	if(gain > 18.027804):
 		print("Is de gain niet wat aan de hoge kant? (gain = " + str(gain) + ")\n")
 
-
+"""
 print(FPSString)
 if(FPSString == "" or FPSString == None):
 	exposureTimeString = input("Enter exposure time (us):"  )
@@ -120,6 +152,17 @@ if(FPSString == "" or FPSString == None):
 else:
 	FPS = int(FPSString)
 	exposureTime = 1000000/FPS
+
+"""
+
+if(FPSString == "" or FPSString == None):
+   FPSString = "55"
+
+FPS = int(FPSString)
+exposureTime = 1000000/FPS
+
+
+
 print("FPS = " + str(FPS) + " ; Exposure time = " + str(exposureTime) + " us ; Gain: " + str(gain) + " ; Max frames: " + str(maxFrames)  )	
 	
 
@@ -233,6 +276,10 @@ cam_initialize(camb)
 camb.properties['ExposureTime'] = exposureTime
 writeMetadata("\nLaser current: "+ str(laserCurrent)+"\n")
 writeMetadata("Laser current (user): " + laserCurrentString + "\n")
+writeMetadata("Electric properties:\n ")
+writeMetadata("['ElectricPotential', "+ str(electricPotential) +"]\n")
+writeMetadata("['SignalType', '"+ signalType +"']\n")
+writeMetadata("['ElectricFrequency', "+ str(electricFrequency) +"]\n")
 writeMetadata("Particle: " + particleDiameterString+"\n" )
 writeMetadata("['PixelSize', "+ str(pixelSize) +"]\n")
 writeMetadata("\nCamera settings:\n")
@@ -316,12 +363,12 @@ if(trackParticles):
    os.system(command)
    print("Particles tracked")
 
-
+"""
 runs = 0
 files = os.listdir(currentPath + "\\tracking\\" + today)
 for file in files:
    if(file[3:].isdigit() and file[0:3] == 'run' and int(file[3:]) > runs):
       runs = int(file[3:])
-
+"""
 
 print('done')

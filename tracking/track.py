@@ -35,7 +35,7 @@ import scipy.signal
 
 class Tracking:
     
-    def __init__(self,folder, particleDiameter, minimumMass, maximumMass, frameMemory, micronPerPixel,createTree = True, dataKey = None, h5name = "data.h5",FPS = -1,useFrames = -1, subframes = [None, None],signalType = None):
+    def __init__(self,folder, particleDiameter, minimumMass, maximumMass, frameMemory, micronPerPixel,createTree = True, dataKey = None, h5name = "data.h5",FPS = -1,useFrames = -1, subframes = [None, None],signalType = None,electricFrequency = -1):
 
         """
         
@@ -58,6 +58,8 @@ class Tracking:
         if(signalType == None):
             self.signalType  = self.getFromMetaData("SignalType" , (folder +  "\\metadata.txt"))
             print("Electric signal: " + str(self.signalType))
+
+
         self.subframes = subframes 
         if( subframes != [None,None] ):
            self.useFrames = np.amax(subframes) - np.amin(subframes)
@@ -75,7 +77,7 @@ class Tracking:
         self.cameraFPS = FPS                             #camera FPS if < 0, script will try to get from metadata file
         self.micronPerPixel = micronPerPixel                    #pixel size in um
         self.removeBackgroundOffset = 50                  # subtracts the image n frames before the current frame to remove bg
-        self.today = datetime.datetime.now().strftime("%d-%m-%y") #get date
+        self.today = datetime.datetime.now().strftime("%y-%m-%d") #get date
         self.temperature = 293                            #temp in K
         self.boltzmannConstant = 1.380649                 #(in 10^-23 JK^-1)
         self.viscosity = 0.001                            #viscosity in Pa s
@@ -88,7 +90,13 @@ class Tracking:
         self.numberOfFramesFitted = -1                     #if <0 all frames will be used.
         self.maxLagTime = 100                             #maximum number of frames used for msd calculation
         self.removeLastFrames = False #remove last frames to prevent artefacts from background removal
-        
+        self.electricFrequency = electricFrequency
+
+        if(self.electricFrequency < 0 or self.electricFrequency == None):
+           self.electricFrequency = float(self.getFromMetaData("ElectricFrequency" , (self.currentPath +  "\\metadata.txt")))
+
+
+
         if(self.micronPerPixel < 0):
            self.micronPerPixel = float(self.getFromMetaData("PixelSize" , (self.currentPath +  "\\metadata.txt")))
 
@@ -345,7 +353,12 @@ class Tracking:
        return links
        
     
-    def calculateMobility(self, direction = 'y',useFFT = True, frequency = 0.5, window = 0.3, signal = None):
+    def calculateMobility(self, direction = 'y',useFFT = True, frequency = None, window = 0.3, signal = None):
+
+
+       if(frequency == None):
+          frequency = self.electricFrequency       
+
        if(signal == None):
            signal = self.signalType
            if(isinstance(signal,int)):
