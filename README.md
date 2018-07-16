@@ -9,7 +9,7 @@ Further information about nanoCET: www.nano-EPics.com
 
 *[x] Identify presence of particles and extract their tracks as they pass through the field of view.  
 *[x] Use tracking information (position, intensity, point spread function) to determine  diffusion constants and optical scattering cross section of individual particle and distribution of their properties.
-*[ ] Generate presentable reports of particle size distribution or other characterized properties.
+*[x] Generate presentable reports of particle size distribution or other characterized properties.
 *[ ] For electro-actuated particles detemine the mobility of the particles.
 
 
