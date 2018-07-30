@@ -17,47 +17,53 @@ import cv2
 import pickle
 import csv
 import sys #gives sys.exit() for debugging
-from track import Tracking
+from trackUtils import trackUtils
 
+maxFrames = 50
+evenlySpread = True
 
 if(len(sys.argv) == 1):
-   folder  = "E:\\Peter\\simulation\\runs\\29-05-18\\run2\\ParticleDiameter40_noise_10_FPS_400"
+   folder  = "D:\\Onderzoek\\data\\18-07-27\\18-07-27\\run3"
 else:
    folder = sys.argv[1]
    print("Subtracting background from file at " + folder)
 
-trackingObject = Tracking(folder, 31, 1750, 4000, 10, -1,h5name = "data.h5", FPS = -1,useFrames = -1, createTree = False)
-trackingObject.currentPath = folder
-maxFrames = -1
-evenlySpread = True
 
-if(maxFrames < 0 and len(trackingObject.frames) > 1000):
-   print("maximum number of frames too high. Max frames set to 1000")
-   maxFrames = 1000
+if(folder[-3] == ".h5"):
+   file = folder
+else:
+   file = folder + "\\data.h5"
+print(file)
+
+frames = trackUtils.loadData(file)
 
 
+if(maxFrames < 0 and len(frames) > 25):
+   print("maximum number of frames too high. Max frames set to 500")
+   maxFrames = 25
 
-if(evenlySpread and len(trackingObject.frames)%maxFrames != 0):
+
+if(evenlySpread and len(frames)%maxFrames != 0):
     print("Wrong maxFrames for evenly spread choise of frames.")
 
-if(evenlySpread and maxFrames !=-1):
-    frames = []
-    for i in range(0,len(trackingObject.frames),int(len(trackingObject.frames)/maxFrames)):
-        frames.append(trackingObject.frames[i])
-    trackingObject.frames = np.array(frames)
+if(evenlySpread and maxFrames != -1):
+    tempframes = []
+    for i in range(0,len(frames),int(len(frames)/maxFrames)):
+        tempframes.append(frames[i])
+    frames = np.array(tempframes)
 elif(maxFrames < 0):
     print("All frames are used.")
 
-frames = []
+tempframes = []
 array = []
-dimensions = list(trackingObject.frames.shape)
+dimensions = list(frames.shape)
 if(maxFrames > 0):
     dimensions[0] = np.amin([dimensions[0],maxFrames])
 else:
     maxFrames = dimensions[0]
 
-for i in range(len(trackingObject.frames)):
-    array.append(trackingObject.frames[i].flatten())
+for i in range(len(frames)):
+    array.append(frames[i].flatten())
 
 
 
@@ -91,21 +97,22 @@ del u
 del v
 del frames
 
-trackingObject.saveImage(np.uint8(background), folder + "/background.png")
+trackUtils.saveImage(np.uint8(background), folder + "/background.png")
 
 
-trackingObject.loadData()#load data again for subtraction
+frames = trackUtils.loadData(file)#load data again for subtraction
 
 print("Subtracting background from frames:")
 
-trackingObject.subtractBackground(background = np.uint16(background))
+
+frames = trackUtils.subtractBackground(frames, background = np.uint16(background))
 
 print("Saving frames:")
 
-trackingObject.saveHDF5Data(trackingObject.frames,"frames with bg subtracted", folder + "/data_withoutBG.h5")
+trackUtils.saveHDF5Data(frames,"frames with bg subtracted", folder + "/data_withoutBG.h5")
 print("Save AVI")
-trackingObject.saveAVIData(trackingObject.frames,folder + "/subtractedBG_lin")
-trackingObject.saveAVIData(trackingObject.frames,folder + "/subtractedBG_log", logarithmic=True )
+trackUtils.saveAVIData(frames,folder + "/subtractedBG_lin")
+trackUtils.saveAVIData(frames,folder + "/subtractedBG_log", logarithmic=True )
 
 
 

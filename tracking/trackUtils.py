@@ -26,6 +26,9 @@ from PIL import Image
 
 class trackUtils:
 
+
+   
+   
     @staticmethod
     def createDirectoryTree(path, runs=0, foldername="", date=""):
 
@@ -67,7 +70,7 @@ class trackUtils:
     @staticmethod
     def loadData(path, subframes=[None], dataKey=None):
 
-        print("Loadign h5 data from: " + path)
+        print("Loading h5 data from: " + path)
         file = h5py.File(path, 'r')  # open existing file in read-only mode
         if (dataKey == None):
             key = next(iter(file.keys()))  # getting the first key by default
@@ -87,9 +90,11 @@ class trackUtils:
 
         # each tracking object has its own set of variables, including frames:    
         frames = np.array(data)
-        print(subframes)
+        
+        
         if (subframes != [None]):
             frames = frames[subframes[0]:subframes[1]]
+            print(subframes)
         print("Data loaded")
         print("Pixel min/max: " + str(np.amin(data)) + "/" + str(np.amax(data)))
 
@@ -171,6 +176,28 @@ class trackUtils:
         else:
             trackUtils.saveAVIDataLinear(data, dest, FPS, format, colour)
         return
+
+    @staticmethod
+    def subtractBackground(frames, background):
+
+        
+        frames = frames.astype(np.int16)  # negative values are needed, negative values are set to 0 by clip
+        framesWithoutBackground = []  # this will be the frames without bg
+
+        if (background.shape != frames[0].shape):
+            print("Wrong background shape: ")
+            print(background.shape)
+            print(frames[0].shape)
+        maxFrames = len(frames)
+        for i in range(maxFrames):
+            framesWithoutBackground.append(np.subtract(frames[i], background))
+
+        framesWithoutBackground = np.array(framesWithoutBackground)
+        # bring each pixel value below 0 back to 0:
+        np.clip(framesWithoutBackground, 0, np.amax(framesWithoutBackground), framesWithoutBackground)
+        framesWithoutBackground = np.uint16(framesWithoutBackground)
+        return framesWithoutBackground
+
 
     @staticmethod
     def saveAVIDataLinear(data, dest, FPS, format='XVID', colour=False):
