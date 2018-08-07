@@ -134,7 +134,7 @@ class trackUtils:
                        "particle diameter (px): " + str(trackingObject.particleDiameter) + "\n" + \
                        "minimum mass: " + str(trackingObject.minMass) + "\n" + \
                        "maximum mass: " + str(trackingObject.maxMass) + "\n" + \
-                       "maximum excentricity: " + str(trackingObject.maximumExcentricity) + "\n" + \
+                       "maximum eccentricity: " + str(trackingObject.maximumEccentricity) + "\n" + \
                        "maximum distance between frames (px): " + str(trackingObject.maxTravelDistance) + "\n" + \
                        "minimum distance between frames (px): " + str(trackingObject.minimumMSD) + "\n" + \
                        "memory (frames): " + str(trackingObject.maxFrameMemory) + "\n" + \
@@ -307,7 +307,7 @@ class trackUtils:
                    trackingObject.diffusionConstants, delimiter=",")
         np.savetxt(folder + "\\particleDiameters" + str(trackingObject.runs) + ".csv", trackingObject.particleDiameters,
                    delimiter=",")
-        np.savetxt(folder + "\\massDistribution.csv", trackingObject.links['mass'], delimiter=",")
+        np.savetxt(folder + "\\massDistribution.csv", trackingObject.averageMass, delimiter=",")
         np.savetxt(folder + "\\pathLengths" + str(trackingObject.runs) + ".csv", trackingObject.visibleInFrames,
                    delimiter=",")
         np.savetxt(folder + "\\eccentricity" + str(trackingObject.runs) + ".csv", trackingObject.eccentricity,
@@ -346,8 +346,6 @@ class trackUtils:
         plt.xlabel('lag time $t$');
         trackpyFit = tp.utils.fit_powerlaw(powerLaw)
         figure.savefig(trackingObject.currentPath + '/powerLawFit' + str(trackingObject.runs) + '.pdf')
-
-        print(trackingObject.diffusionConstants)
 
         plt.figure()
         n, bins, patches = plt.hist(trackingObject.diffusionConstants[:, 1], binsize)

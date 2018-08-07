@@ -26,7 +26,7 @@ mpl.use('Agg') # this prevents popups when processing data.
 plt.ioff()
 
 if (len(sys.argv) < 2):#default folfer for debugging. Remove this before uploading.
-    folder = "D:\\Onderzoek\\data\\6-6\\shortlist\\run5\\data.h5"
+    folder = "D:\\Onderzoek\\data\\18-07-23\\yellow objective low gain\\run5"
 else:
     folder = sys.argv[1]
 
@@ -66,6 +66,8 @@ else:
     subframes = [None, None]
     numberOfFrames = -1
 
+
+
 """
 create a tracking object.
 tracking(path to data, particle diameter (px), minmass, maxmass, 
@@ -90,14 +92,15 @@ if (numberOfFrames < 0):
 rus, outputPath = trackUtils.createDirectoryTree(folder)
 trackingObject.currentPath = outputPath
 
-trackingObject.minimumMSD = 0.5  # minimum mean square displacement. Use to prevent stuck particles.
+trackingObject.minimumMSD = 0.05  # minimum mean square displacement. Use to prevent stuck particles.
 trackingObject.detectParticles(silent=False)
 trackingObject.linkParticles(silent=False)  # link different frames
 
 trackingObject.calculateDiffusion(maxLagTime=5)  # maxLagTime is how many frames will be used per fit
 trackingObject.calculateMobility(direction='y')
-trackUtils.generateMiscPlots(trackingObject, binsize=25, silent=False)  # generate histograms of data
 trackUtils.writeOutputToFolder(outputPath, trackingObject, metadataFile="metadata.txt")
+trackUtils.generateMiscPlots(trackingObject, binsize=25, silent=False)  # generate histograms of data
+
 
 f = open(outputPath + "\\trackingPickleObject.pyc", "wb")
 print("Dataframes deleted to pickle object")

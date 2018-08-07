@@ -30,7 +30,7 @@ from track import Tracking
 
 plt.ioff()
 if(len(sys.argv)<2):
-   folder = "C:\\Users\\Peter\\Desktop\\mobilityTest\\simulation\\runs\\03-07-18\\run54\\data.h5"
+   folder = "D:\\Onderzoek\\data\\18-07-23\\yellow objective low gain\\run5"
 else:
    folder = sys.argv[1]
 
@@ -69,15 +69,28 @@ particleDiameter = 15
 minmass = 1000
 maxmass = 10000
 
-trackingObject = Tracking(folder, particleDiameter,minmass, maxmass,3, -1, h5name = h5name, FPS = -1 ,useFrames = -1, subframes=subframes,createTree = False)
+trackingObject = Tracking(folder, particleDiameter,minmass, maxmass,3, -1, h5name = h5name, FPS = -1 ,useFrames = -1, subframes=subframes)
 
-trackingObject.frames = trackingObject.frames[0:5]
+if(len(trackingObject.frames) < 1):
+   print("No frames loaded.")
+
+while(True):
+   frameNumber = int(input("frame number: "))
+   if(frameNumber > 0 and frameNumber < len(trackingObject.frames)):
+      break
+
+
+trackingObject.frames = trackingObject.frames[frameNumber:np.amin([frameNumber+2, len(trackingObject.frames)])]
 
 while (True):
    try:
-      minmass = int(input("minimum mass: "))
-      maxmass = int(input("maximum mass:"))
-      particleDiameter = int(input("Particle diameter: "))
+      while(True):
+         minmass = int(input("minimum mass: "))
+         maxmass = int(input("maximum mass:"))
+         particleDiameter = int(input("Particle diameter: "))
+         if(minmass < maxmass and particleDiameter > 0 and particleDiameter%2==1):
+            break
+
    except:
       break
    text = "Minimum mass, " + str(minmass) + "\n" + \

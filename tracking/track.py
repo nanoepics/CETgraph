@@ -118,13 +118,13 @@ class Tracking:
         self.boltzmannConstant = 1.380649  # (in 10^-23 JK^-1)
         self.viscosity = 0.001  # viscosity in Pa s
         self.runs = 0  # will be set depending on folder names
-        self.maximumExcentricity = 0.2  # maximum excentricity of detected particles  
+        self.maximumEccentricity = 0.2  # maximum eccentricity of detected particles  
         self.frames = trackUtils.loadData(self.framePath, self.subframes,
                                           dataKey=dataKey)  # will be set by createDirectoryTree()
         self.frameDimensions = self.frames.shape  # Will be set by loadData 
         self.particles = []  # detected particles, will be filled by detectParticles()
         self.numberOfFramesFitted = -1  # if <0 all frames will be used.
-        self.maxLagTime = 100  # maximum number of frames used for msd calculation
+        self.maxLagTime = 5  # maximum number of frames used for msd calculation
         self.removeLastFrames = False  # remove last frames to prevent artefacts from background removal
         self.window = 0.3  # window for Fourier filter
         self.electricFrequency = electricFrequency
@@ -203,10 +203,10 @@ class Tracking:
         return frames
 
     def getSettings(self, dest="", writeOutput=True):
-       """
-       This function writes different parameters to a metadatafile. will be 
-       moved to trackUtils.
-       """
+        """
+        This function writes different parameters to a metadatafile. will be 
+        moved to trackUtils.
+        """
 
         metadataText = "Run " + str(self.runs) + ' ' + str(datetime.datetime.now()) + \
                        "\n" + "Using data from file: " + self.framePath + "\n\nSettings:\n" + \
@@ -236,7 +236,7 @@ class Tracking:
         return metadataText
 
     def linkParticles(self, filtering=True, silent=False):
-       """"This function links the outut of detectParticles. """"
+        """This function links the outut of detectParticles. """ 
         self.links = tp.link_df(self.particles, self.maxTravelDistance, memory=self.maxFrameMemory)
         if (filtering):
             self.links = self.filterLinks(silent=silent)
@@ -246,8 +246,8 @@ class Tracking:
         print("Filtering.")
         links = self.links
         links = tp.filter_stubs(links, threshold=self.minimumParticleLifetime)
-        links = links[((links['mass'] < self.maxMass) & (links['ecc'] < self.maximumExcentricity))]
-        links = links[((links['mass'] < self.maxMass) & (links['ecc'] < self.maximumExcentricity))]
+        links = links[((links['mass'] < self.maxMass) & (links['ecc'] < self.maximumEccentricity))]
+        links = links[((links['mass'] < self.maxMass) & (links['ecc'] < self.maximumEccentricity))]
         self.linksWithoutDriftCorrection = links
 
         self.drift = tp.compute_drift(links)
@@ -267,7 +267,7 @@ class Tracking:
             tp.plot_traj(links);
             figure.savefig(self.currentPath + '/trajectories' + str(self.runs) + '.pdf')
             # plt.show(figure)
-
+        print("Number of links: " + str(len(links)))
         self.links = links
 
         return links
@@ -414,7 +414,7 @@ class Tracking:
         return
 
     def detectParticles(self, maxFrames=0, silent=False):
-       """This function looks for particles in a frame stack."""
+        """This function looks for particles in a frame stack."""
         if (maxFrames == 0):
             maxFrames = self.maxFrames
         self.particles = tp.batch(self.frames[:maxFrames], self.particleDiameter, minmass=self.minMass)
@@ -445,6 +445,7 @@ class Tracking:
 
         print('Minimum mass: ' + str(np.amin(np.array(particles['mass']))))
         print('Maximum mass: ' + str(np.amax(np.array(particles['mass']))))
+        print('Number of particles: '+ str(len(particles['mass']) ))
 
         if (showImages):
             plt.figure()
@@ -493,7 +494,6 @@ class Tracking:
             self.maxLagTime = maxLagTime
 
         self.msdData = tp.imsd(self.links, self.micronPerPixel, self.cameraFPS, max_lagtime=maxLagTime)
-
         self.fits = []
         self.diffusionConstants = []
         self.particleDiameters = []
@@ -501,9 +501,8 @@ class Tracking:
         self.visibleInFrames = []
         self.averageMass = []
         # deletes null and nan values, and minimumMSD check:
-        occurance = Counter(self.links[
-                                'particle'])  # Count in how many frames a particle is seen. (occurance[particle number] gives its path length)
-
+        occurance = Counter(self.links['particle'])  # Count in how many frames a particle is seen. (occurance[particle number] gives its path length)
+        print("Number of particles: " + str(len(occurance)))
         massList = self.links[['particle', 'mass']].groupby(['particle']).mean()
         """ This loop loops over each particle and if the data of that particle
         is finite, it will be added t the list. on that data the diffusion
@@ -515,14 +514,12 @@ class Tracking:
                 continue
             temp2 = [temp.iloc[0]] + np.diff(temp).tolist()
             temp2 = sum(temp2) / (float(len(temp2)))
-
             if ((not temp.isnull().values.any()) and (len(temp) > 0) and (temp2 > self.minimumMSD)):
                 self.fits.append([i, tp.utils.fit_powerlaw(temp, plot=False).as_matrix().tolist()])
                 if ((not np.isnan(self.fits[-1][1][0][0])) and (not np.isnan(self.fits[-1][1][0][1]))):
-                    self.visibleInFrames.append(occurance[
-                                                    i])  # number of frames a particle is seen is used to give weigths to particle diamater histogram
+                    self.visibleInFrames.append(occurance[i])  # number of frames a particle is seen is used to give weigths to particle diamater histogram
                     self.averageMass.append(massList.loc[i])
-         """From the fits, the diffusion constant and the diameter is calculated. """
+        """From the fits, the diffusion constant and the diameter is calculated. """
         for e in self.fits:
             if ((not np.isnan(e[1][0][0])) and (not np.isnan(e[1][0][1]))):
                 self.fittedPower.extend([e[1][0][0]])

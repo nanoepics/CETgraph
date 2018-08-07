@@ -3,23 +3,23 @@
 Created on Mon Apr 16 15:34:07 2018
 
 @author: Peter
+
+
+This script loads the data form the path given as parameter and performs either
+background subtraction using singular value decomposition and considers the 
+vector with the highest singular value as the background, or it subracts the 
+median pixel of each x,y position. It uses the trackUtils subtractBackground 
+function to subtract the found background. 
+
+
 """
 
 import numpy as np
-import matplotlib.pyplot as plt
-import trackpy as tp
-import math
-from PIL import Image
-import os
-import datetime
-import h5py
-import cv2
-import pickle
-import csv
 import sys #gives sys.exit() for debugging
 from trackUtils import trackUtils
 
-maxFrames = 50
+useSVD = False
+maxFrames = -1
 evenlySpread = True
 
 if(len(sys.argv) == 1):
@@ -38,9 +38,9 @@ print(file)
 frames = trackUtils.loadData(file)
 
 
-if(maxFrames < 0 and len(frames) > 25):
-   print("maximum number of frames too high. Max frames set to 500")
-   maxFrames = 25
+if(maxFrames < 0 and len(frames) > 1000):
+   print("maximum number of frames too high. Max frames set to 1000")
+   maxFrames = 1000
 
 
 if(evenlySpread and len(frames)%maxFrames != 0):
@@ -62,40 +62,45 @@ if(maxFrames > 0):
 else:
     maxFrames = dimensions[0]
 
-for i in range(len(frames)):
-    array.append(frames[i].flatten())
 
 
+if(useSVD):
+   for i in range(len(frames)):
+       array.append(frames[i].flatten())
+   
+   print("Starting decomposition")
+   u, s, v = np.linalg.svd(array,full_matrices= False)
+   s0 = s[0]
+   for i in range(1,len(s)):
+       s[i] = 0
 
-print("Starting decomposition")
-u, s, v = np.linalg.svd(array,full_matrices= False)
-s0 = s[0]
-for i in range(1,len(s)):
-    s[i] = 0
+   print("caclulate m = u.s.v")
+   array = (u * s[..., None, :]) @ v
+   
+   frames = []
+   temp = []
+   
+   
+   for i in range(dimensions[0]):
+       for j in range(0,dimensions[1]*dimensions[2],dimensions[2]):
+           temp.append(array[i][j:j+dimensions[2]])
+       frames.append(temp)
+       temp = []
+   
+   
+   background = frames[0]
+   frames = []
+   array = []
+   
+   del array
+   del s
+   del u 
+   del v
+   del frames
+else:
+   background = np.median(frames, axis = 0)
 
-print("caclulate m = u.s.v")
-array = (u * s[..., None, :]) @ v
 
-frames = []
-temp = []
-
-
-for i in range(dimensions[0]):
-    for j in range(0,dimensions[1]*dimensions[2],dimensions[2]):
-        temp.append(array[i][j:j+dimensions[2]])
-    frames.append(temp)
-    temp = []
-
-
-background = frames[0]
-frames = []
-array = []
-
-del array
-del s
-del u 
-del v
-del frames
 
 trackUtils.saveImage(np.uint8(background), folder + "/background.png")
 
@@ -110,6 +115,7 @@ frames = trackUtils.subtractBackground(frames, background = np.uint16(background
 print("Saving frames:")
 
 trackUtils.saveHDF5Data(frames,"frames with bg subtracted", folder + "/data_withoutBG.h5")
+trackUtils.saveHDF5Data(np.uint16(background),"backgroundFrame", folder + "/backgroundFrame.h5")
 print("Save AVI")
 trackUtils.saveAVIData(frames,folder + "/subtractedBG_lin")
 trackUtils.saveAVIData(frames,folder + "/subtractedBG_log", logarithmic=True )
