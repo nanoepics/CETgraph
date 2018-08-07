@@ -14,19 +14,19 @@ python trackParticles.py [path to data] [first frame] [last frame]
 """
 
 import matplotlib as mpl
+mpl.use('Agg') # this prevents popups when processing data.
+import matplotlib.pyplot as plt# plotting
+plt.ioff()
 import numpy as np
-import matplotlib.pyplot as plt
 import os
 import pickle
 import sys
 from track import Tracking
 from trackUtils import trackUtils
 
-mpl.use('Agg') # this prevents popups when processing data.
-plt.ioff()
 
 if (len(sys.argv) < 2):#default folfer for debugging. Remove this before uploading.
-    folder = "D:\\Onderzoek\\data\\18-07-23\\yellow objective low gain\\run5"
+    folder = "D:\\Onderzoek\\data\\18-08-02\\run30"
 else:
     folder = sys.argv[1]
 

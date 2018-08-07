@@ -15,7 +15,7 @@ functions.
 import datetime  # date stamp
 # from PIL import Image              # io images
 import os  # io
-
+import matplotlib as mpl
 import cv2  # export avi
 import h5py  # import and export hdf5
 import matplotlib.pyplot as plt  # plotting

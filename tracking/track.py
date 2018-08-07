@@ -41,7 +41,7 @@ This function calculates the diffusion and diffusion based output.
 import datetime  # date stamp
 from collections import Counter  # used to count #frames in which individual particles occur: used for weighted fit
 import math  # maths utils
-import matplotlib.pyplot as plt  # plotting
+import matplotlib.pyplot as plt# plotting
 import numpy as np  # numpy arrays
 import trackpy as tp  # trackpy
 from trackUtils import trackUtils
@@ -105,11 +105,11 @@ class Tracking:
         self.particleDiameter = particleDiameter  # particle diameter in pixels
         self.minMass = minimumMass  # minimal mass particle
         self.maxMass = maximumMass  # maximum mass particle (intensity)
-        self.maxTravelDistance = 5  # maximum distance travelled between frames
+        self.maxTravelDistance = 10  # maximum distance travelled between frames
         self.minimumMSD = 0.05  # minimum mean square displacement for calculation D, because D is calculated for each particle individually, this parameter is not important
         self.maxFrameMemory = frameMemory  # If particle disappears, it will be a new unique particle after this number of frames
         self.useFrames = useFrames  # if < 0, all frames will be used.
-        self.minimumParticleLifetime = 50  # minimum number of frames a particle should be located. Otherwise it is deleted
+        self.minimumParticleLifetime = 10  # minimum number of frames a particle should be located. Otherwise it is deleted
         self.cameraFPS = FPS  # camera FPS if < 0, script will try to get from metadata file
         self.micronPerPixel = micronPerPixel  # pixel size in um
         self.removeBackgroundOffset = 50  # subtracts the image n frames before the current frame to remove bg
@@ -118,7 +118,7 @@ class Tracking:
         self.boltzmannConstant = 1.380649  # (in 10^-23 JK^-1)
         self.viscosity = 0.001  # viscosity in Pa s
         self.runs = 0  # will be set depending on folder names
-        self.maximumEccentricity = 0.2  # maximum eccentricity of detected particles  
+        self.maximumEccentricity = 0.5  # maximum eccentricity of detected particles  
         self.frames = trackUtils.loadData(self.framePath, self.subframes,
                                           dataKey=dataKey)  # will be set by createDirectoryTree()
         self.frameDimensions = self.frames.shape  # Will be set by loadData 
@@ -214,7 +214,7 @@ class Tracking:
                        "particle diameter (bottle): " + str(self.estimatedDiameter) + "\n" + \
                        "minimum mass: " + str(self.minMass) + "\n" + \
                        "maximum mass: " + str(self.maxMass) + "\n" + \
-                       "maximum excentricity: " + str(self.maximumExcentricity) + "\n" + \
+                       "maximum eccentricity: " + str(self.maximumEccentricity) + "\n" + \
                        "maximum distance between frames (px): " + str(self.maxTravelDistance) + "\n" + \
                        "minimum distance between frames (px): " + str(self.minimumMSD) + "\n" + \
                        "memory (frames): " + str(self.maxFrameMemory) + "\n" + \
@@ -243,11 +243,16 @@ class Tracking:
         return self.links
 
     def filterLinks(self, silent=False):
+        
+        
         print("Filtering.")
         links = self.links
+        print("Number of links: " + str(len(links)))
+        
         links = tp.filter_stubs(links, threshold=self.minimumParticleLifetime)
+        print("Number of links after removing paths shorter than %d: %d " % (self.minimumParticleLifetime, len(links)))
         links = links[((links['mass'] < self.maxMass) & (links['ecc'] < self.maximumEccentricity))]
-        links = links[((links['mass'] < self.maxMass) & (links['ecc'] < self.maximumEccentricity))]
+        print("Number of links after removing high intensity and particle with high eccentricity: %d " % len(links))
         self.linksWithoutDriftCorrection = links
 
         self.drift = tp.compute_drift(links)
@@ -271,6 +276,35 @@ class Tracking:
         self.links = links
 
         return links
+
+    def _getPointsWithLargestDistance(self, xValues, yValues):
+       
+       if(len(xValues) != len(yValues)):
+          #print("Points wrong shape")
+          return
+       if(len(xValues) < 2):
+          #print("Too few points in array")
+          return
+       
+       meanX = np.mean(xValues)
+       meanY = np.mean(yValues)  
+       p0 = [None, None]
+       p1 = [None, None]
+    
+       distance2 = 0.0
+       for x, y in zip(xValues, yValues):
+          if((x-meanX)*(x-meanX)+(y-meanY)*(y-meanY) > distance2):
+             distance2 = (x-meanX)*(x-meanX)+(y-meanY)*(y-meanY)
+             p0[0], p0[1] = [x, y]
+             
+       distance2 = 0.0
+       for x, y in zip(xValues, yValues):
+          if((x-p0[0])*(x-p0[0])+(y-p0[1])*(y-p0[1]) > distance2):
+             distance2 = (x-p0[0])*(x-p0[0])+(y-p0[1])*(y-p0[1])
+             p1[0], p1[1] = [x, y]
+             
+       return (np.sqrt(distance2),p0,p1) 
+
 
     def calculateMobility(self, direction='y', useFFT=True, frequency=None, window=None, signal=None):
         """The mobility will be calculated in a direction specified by the 
@@ -411,7 +445,32 @@ class Tracking:
             plt.grid(True)
             figure.savefig(self.currentPath + '/mobilityDistribution' + str(self.runs) + '.pdf')
 
+        """
+        For short tracks, the begin and end point of the track are the points
+        with the largest distance between them. The distance between those
+        points is the length of the track and the distance covered by the
+        particle.
+        """
+        xValues = self.linksWithoutDriftCorrection[['particle', 'x']].groupby('particle')['x'].apply(list)
+        yValues = self.linksWithoutDriftCorrection[['particle', 'y']].groupby('particle')['y'].apply(list)
+        
+      
+        
+        self.outerPointList = []
+        self.outerPointDistance = []
+        self.outerPointDistanceWeights = []
+        self.mobilityPerTrackList = []
+        
+        for i in yValues.index.values:
+           outerPoints = self._getPointsWithLargestDistance(xValues[i],yValues[i])
+           if(outerPoints == None):
+              continue
+           self.outerPointList.append([outerPoints[1], outerPoints[2]])
+           self.outerPointDistance.append(outerPoints[0])
+           self.mobilityPerTrackList.append(math.pi*frequency*self.micronPerPixel*outerPoints[0])
+           self.outerPointDistanceWeights.append(len(xValues[i]))
         return
+    
 
     def detectParticles(self, maxFrames=0, silent=False):
         """This function looks for particles in a frame stack."""
@@ -438,7 +497,7 @@ class Tracking:
             path = self.currentPath
 
         particles = tp.locate(self.frames[frameNumber], self.particleDiameter, minmass=self.minMass)
-        particles = particles[((particles['mass'] < self.maxMass) & (particles['ecc'] < self.maximumExcentricity))]
+        particles = particles[((particles['mass'] < self.maxMass) & (particles['ecc'] < self.maximumEccentricity))]
         if (len(particles) == 0):
             print("No particles found.")
             return particles
