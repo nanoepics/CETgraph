@@ -6,6 +6,8 @@ import datetime
 import pypylon
 import h5py
 import cv2
+import sys
+import scipy.misc
 
 exposureTime = 20000 # exposure time in useconds
 laserCurrent = 90 # laser current in mA
@@ -25,10 +27,45 @@ subtractBackground = True
 
 
 
+def getFromFile(text, path):
+    if(path == None):
+        return
+    try:
+        f = open(path, "r")
+        input = f.read().split("\n")
+        f.close()
+    except Exception as e:
+        print("Cannot open file")
+        print(e)
+        return
+    for e in input:
+        e = e.split(",")
+        if(len(e) < 2):
+            continue
+        for i, word in enumerate(e):
+            e[i] = word.strip()
+        if(e[0] == text):
+            return e[1]
+    print("No element called %s" % text)
+    return
+
+def setSetting(property, path, description ):
+    settingFromFile = getFromFile(property, path)
+    if( settingFromFile == None ):
+        return input(description)
+    return settingFromFile
+
+
+
 pythonLocation = "E:\\Peter\\Anaconda\\python.exe"
 backgroundSubtractionScript = '"E:\\Peter\\python scripts\\subtractBackground.py"'
 trackScript = '"E:\\Peter\\python scripts\\trackParticles.py"' 
-plotScript = '"E:\\Peter\\python scripts\\plotHistogramSilent.py"' 
+plotScript = '"E:\\Peter\\python scripts\\plotHistogramSilent.py"'
+settingsFile = None
+
+if(len(sys.argv)>1):
+    settingsFile = sys.argv[1]
+print("Settings will be retrieved from %s" % settingsFile)
 
 today = datetime.datetime.now().strftime("%y-%m-%d")
 
@@ -51,20 +88,21 @@ else:
 
 
 
-particleDiameterString = input("Enter label for measured sample (e.g. 30nm gold): ")
-laserCurrentString = input("Enter laser current (mA) (Null = 89,9 mA) : ")
+particleDiameterString = setSetting("Particle", settingsFile, "Enter label for measured sample (e.g. 30nm gold): ")
+laserCurrentString = setSetting("LaserCurrent", settingsFile, "Enter laser current (mA) (Null = 89,9 mA) : ")
+
 if(laserCurrentString == ""):
    laserCurrentString = "89.9"
 print("Laser at " + laserCurrentString + " mA")
 laserCurrent = float(laserCurrentString)
 
-potentialString = input("Enter electric potential (blank is 0.0): ")
+potentialString = setSetting("Potential", settingsFile, "Enter electric potential (blank is 0.0): ")
 if(potentialString == ""):
    electricPotential = 0.0
 else:
    electricPotential = float(potentialString)
 
-signalType = input("Enter signal type (blank = block, b = block, s = sin. Enter 'b' for DC ): ").lower()
+signalType = setSetting("SignalType",settingsFile,"Enter signal type (blank = block, b = block, s = sin. Enter 'b' for DC ): ").lower()
 
 if(signalType == "s" or signalType == "sin"):
    signalType = 'sin'
@@ -73,7 +111,7 @@ elif(signalType == "" or signalType == "b" or signalType == "block" ):
 else:
    print(signalType + " not recognized as a signal type. use 'b' or 's' " )
 
-frequencyString = input("Enter electric frequency in Hz (0 or -1 for DC): ")
+frequencyString = setSetting("ElectricFrequency", settingsFile,"Enter electric frequency in Hz (0 or -1 for DC): ")
 if(frequencyString == ""):
    electricFrequency = 0
 else:
@@ -82,12 +120,12 @@ else:
    
 
 
-FPSString = input("Enter FPS (or leave blank for 55 Hz): ")
-maxFramesString = input("Enter maximum number of frames: ")
-XFOVString = input("Enter width of imgage in pixels (leave blank to skip, start form top left corner): ")
-YFOVString = input("Enter height of image in pixels: ")
+FPSString = setSetting("FPS", settingsFile, "Enter FPS (or leave blank for 55 Hz): ")
+maxFramesString = setSetting("MaxFrames",settingsFile,"Enter maximum number of frames: ")
+XFOVString = setSetting("Width", settingsFile , "Enter width of imgage in pixels (leave blank to skip, start form top left corner): ")
+YFOVString = setSetting("Height", settingsFile,"Enter height of image in pixels: ")
 
-objectiveString = input("Objective? (Null = green, g = green, r = red, b = brown, y = yellow, 63x = light blue 63x, 40x = light blue 40x)" ).lower()
+objectiveString = setSetting("Objective",settingsFile,"Objective? (Null = green, g = green, r = red, b = brown, y = yellow, 63x = light blue 63x, 40x = light blue 40x)" ).lower()
 
 if(objectiveString == "r" or objectiveString == 'red'):
    pixelSize = 0.75374991 #red objective um/pixel
@@ -118,20 +156,20 @@ if(FOV[1] > 960 or FOV[1] < 0):
 
 maxFrames = int(maxFramesString)
 print("Ouput data will be: " + str(maxFrames) + " frames with size: " + str(FOV[0]) + "x" + str(FOV[1]))
-subtractBGString = input("Subtract background? (Y/N, blank is yes): ").lower()
+subtractBGString = setSetting("SubtractBackground",settingsFile,"Subtract background? (Y/N, blank is yes): ").lower()
 
-if(subtractBGString == "n" or subtractBGString == "no" or subtractBGString == "nee"):
+if(subtractBGString == "n" or subtractBGString == "no" or subtractBGString == "nee" or subtractBGString == "false"):
    subtractBackground = False
 
-trackString= input("Track particles? (Y/N, blank is no): ").lower()
+trackString= setSetting("TrackParticles",settingsFile,"Track particles? (Y/N, blank is no): ").lower()
 
-if(trackString == "y" or trackString== "yes" or trackString== "ja" or trackString == 'j'):
+if(trackString == "y" or trackString== "yes" or trackString== "ja" or trackString == 'j' or trackString == "true"):
    trackParticles = True
 else:
    trackParticles = False
 
 
-gainString = input("Enter Gain level (type -1 for max, 0 or blank for 0): ")
+gainString = setSetting("Gain",settingsFile,"Enter Gain level (type -1 for max, 0 or blank for 0): ")
 
 if(gainString == "" or gainString == None):
 	gain = 0.0
@@ -143,17 +181,7 @@ else:
 	if(gain > 18.027804):
 		print("Is de gain niet wat aan de hoge kant? (gain = " + str(gain) + ")\n")
 
-"""
-print(FPSString)
-if(FPSString == "" or FPSString == None):
-	exposureTimeString = input("Enter exposure time (us):"  )
-	exposureTime = int(exposureTimeString)
-	FPS = 1/(exposureTime*1000000)
-else:
-	FPS = int(FPSString)
-	exposureTime = 1000000/FPS
 
-"""
 
 if(FPSString == "" or FPSString == None):
    FPSString = "55"
@@ -172,7 +200,7 @@ print("FPS = " + str(FPS) + " ; Exposure time = " + str(exposureTime) + " us ; G
 
 
 runs = 0
-today = datetime.datetime.now().strftime("%d-%m-%y")
+today = datetime.datetime.now().strftime("%y-%m-%d")
 print(today)
 filename = 'CameraData'
 
@@ -291,8 +319,14 @@ count = 0
 
 print("start imaging")
 rawData = []
+exposedImage = []
+
 for image in camb.grab_images():
    rawData.append(np.array(image)[:FOV[1],:FOV[0]])
+   if(exposedImage == []):
+      exposedImage = np.array(image)[:FOV[1],:FOV[0]]
+   else:
+      exposedImage += np.array(image)[:FOV[1],:FOV[0]]
    maxFrames = maxFrames - 1
    if(maxFrames <= 0):
       break
@@ -350,13 +384,16 @@ for i in range(np.shape(aviData)[0]):
 	videoFile.write(np.uint8(aviData[i]))
 videoFile.release()
 
+scipy.misc.imsave(currentPath + "//exposedImage.png", exposedImage)
+del exposedImage
+
+
 if(subtractBackground):
    print("Subtract background:")
    command = pythonLocation  + " " + backgroundSubtractionScript + " " + currentPath
    os.system(command)
    print("background subtracted")
-
-
+   
 if(trackParticles):
    print("Track particles:")
    command = pythonLocation  + " " + trackScript + " " + currentPath
