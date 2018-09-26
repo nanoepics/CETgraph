@@ -460,14 +460,15 @@ class Tracking:
         self.outerPointDistance = []
         self.outerPointDistanceWeights = []
         self.mobilityPerTrackList = []
-        
+        outerPoints = [0,0,0,0]
         for i in yValues.index.values:
-           outerPoints = self._getPointsWithLargestDistance(xValues[i],yValues[i])
+           temp = self._getPointsWithLargestDistance(xValues[i],yValues[i])
+           outerPoints = [temp[1][0],temp[1][1],temp[2][0],temp[2][1]]
            if(outerPoints == None):
               continue
-           self.outerPointList.append([outerPoints[1], outerPoints[2]])
-           self.outerPointDistance.append(outerPoints[0])
-           self.mobilityPerTrackList.append(math.pi*frequency*self.micronPerPixel*outerPoints[0])
+           self.outerPointList.append(outerPoints)
+           self.outerPointDistance.append(temp[0])
+           self.mobilityPerTrackList.append(math.pi*frequency*self.micronPerPixel*temp[0])
            self.outerPointDistanceWeights.append(len(xValues[i]))
         return
     

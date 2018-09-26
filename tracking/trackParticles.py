@@ -110,3 +110,5 @@ f.close()
 
 command = "E:\\Peter\\Anaconda\\python.exe" + " " + '"E:\\Peter\\python scripts\\plotHistogramSilent.py"' + " " + trackingObject.currentPath
 os.system(command)
+
+

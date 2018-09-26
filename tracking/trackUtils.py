@@ -21,14 +21,12 @@ import h5py  # import and export hdf5
 import matplotlib.pyplot as plt  # plotting
 import numpy as np  # numpy arrays
 import trackpy as tp  # trackpy
+import pandas
 from PIL import Image
 
 
 class trackUtils:
 
-
-   
-   
     @staticmethod
     def createDirectoryTree(path, runs=0, foldername="", date=""):
 
@@ -318,6 +316,16 @@ class trackUtils:
                    delimiter=",")
         np.savetxt(folder + "\\mobilityWeights" + str(trackingObject.runs) + ".csv",
                    trackingObject.averageMobilityWeights, delimiter=",")
+        np.savetxt(folder + "\\outerPointList" + str(trackingObject.runs) + ".csv",
+                   np.array(trackingObject.outerPointList), delimiter=",")        
+        np.savetxt(folder + "\\outerPointDistance" + str(trackingObject.runs) + ".csv",
+                   trackingObject.outerPointDistance, delimiter=",")              
+        np.savetxt(folder + "\\mobilityPerTrackList" + str(trackingObject.runs) + ".csv",
+                   trackingObject.mobilityPerTrackList, delimiter=",")           
+        np.savetxt(folder + "\\outerPointDistanceWeights" + str(trackingObject.runs) + ".csv",
+                   trackingObject.outerPointDistanceWeights, delimiter=",")
+        trackingObject.links.to_csv(folder + "\\tracks" + str(trackingObject.runs) + ".csv")  
+
         return
 
     @staticmethod

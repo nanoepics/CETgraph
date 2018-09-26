@@ -30,7 +30,7 @@ from track import Tracking
 
 plt.ioff()
 if(len(sys.argv)<2):
-   folder = "D:\\Onderzoek\\data\\18-08-02\\run18"
+   folder = "D:\\Onderzoek\\data\\18-08-08\\6 Hz\\data.h5"
 else:
    folder = sys.argv[1]
 

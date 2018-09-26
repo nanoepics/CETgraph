@@ -36,9 +36,11 @@ else:
 print(file)
 
 frames = trackUtils.loadData(file)
+FPS = float(trackUtils.getFromMetaData("ResultingFrameRate", (folder + "\\metadata.txt")))
 
 
-if(maxFrames < 0 and len(frames) > 1000):
+
+if(maxFrames < 0 and len(frames) > 1000 and useSVD):
    print("maximum number of frames too high. Max frames set to 1000")
    maxFrames = 1000
 
@@ -117,8 +119,8 @@ print("Saving frames:")
 trackUtils.saveHDF5Data(frames,"frames with bg subtracted", folder + "/data_withoutBG.h5")
 trackUtils.saveHDF5Data(np.uint16(background),"backgroundFrame", folder + "/backgroundFrame.h5")
 print("Save AVI")
-trackUtils.saveAVIData(frames,folder + "/subtractedBG_lin")
-trackUtils.saveAVIData(frames,folder + "/subtractedBG_log", logarithmic=True )
+trackUtils.saveAVIData(frames,folder + "/subtractedBG_lin", FPS)
+trackUtils.saveAVIData(frames,folder + "/subtractedBG_log", FPS, logarithmic=True )
 
 
 
