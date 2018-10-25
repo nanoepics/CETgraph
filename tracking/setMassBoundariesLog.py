@@ -30,7 +30,7 @@ from track import Tracking
 
 plt.ioff()
 if(len(sys.argv)<2):
-   folder = "D:\\Onderzoek\\data\\18-08-08\\6 Hz\\data.h5"
+   folder = "D:\\Onderzoek\\data\\simulation\\18-10-03\\10_1"
 else:
    folder = sys.argv[1]
 
@@ -64,6 +64,9 @@ if(len(sys.argv) > 2):
 else:
    subframes = [None, None]
    numberOfFrames = -1
+
+
+
 
 particleDiameter = 15
 minmass = 1000

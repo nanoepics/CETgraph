@@ -14,12 +14,22 @@ import pandas as pd
 import simulateBrownianMotion
 from trackUtils import trackUtils
 
-outputPath = "D:\\Onderzoek\\data\\simulation\\18-09-14\\"
+
+if(len(sys.argv) == 1):
+    outputPath = "D:\\Onderzoek\\data\\simulation\\18-10-05\\"
+else:
+    outputPath = sys.argv[1]
+
+if(len(sys.argv) > 1):
+    numberOfFrames = int(sys.argv[2])
+else:
+    numberOfFrames = 1000
+
+
 
 FPS = 55
-numberOfFrames = 20
-stepsPerFrame = 20
-stepsExposed = 20
+stepsPerFrame = 100
+stepsExposed = 100
 
 particleSignal = 1700 / stepsExposed
 
@@ -35,16 +45,14 @@ print("FPS: %f, Frame Time: %f, exposure Time: %f, step delta t: %f, \
 # required: FOV, deltat, micronPerPixel 
 #optional: temperature = 293, viscosity = 0.001, margin = 20
 
-simulation = simulateBrownianMotion.BrownianSimulation((250, 300), deltat, 0.225664, 
+simulation = simulateBrownianMotion.BrownianSimulation((300, 300), deltat, 0.225664, 
                                                        noiseBackLevel = 225.0, 
                                                        gaussianNoiseLevel = 25.0)
 
-simulation.addParticle(100, particleSignal, 2.5, PSFSize = (10,10))
-simulation.addParticle(100, particleSignal, 2.5, PSFSize = (10,10))
-simulation.addParticle(100, particleSignal, 2.5, PSFSize = (10,10))
-simulation.addParticle(100, particleSignal, 2.5, PSFSize = (10,10))
-simulation.addParticle(100, particleSignal, 2.5, PSFSize = (10,10))
-simulation.addParticle(100, particleSignal, 2.5, PSFSize = (10,10))
+
+simulation.MARGIN = 130
+simulation.addParticle(100, particleSignal, 2.5, PSFSize = (15,15))
+simulation.MARGIN = 10
 
 simulation.particles[0].particleID
 

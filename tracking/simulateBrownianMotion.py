@@ -94,11 +94,9 @@ class BrownianSimulation:
         #The diffusion constant is calculated from the Einstein diffusion
         #equation D  = k_B T / (3 pi eta d)
         #the unit is in px**2/DELTAT, 
-        
 
-        
-        pos = [(self.FOV[0]-2*self.MARGIN)*np.random.rand() - self.MARGIN,
-               (self.FOV[1]-2*self.MARGIN)*np.random.rand() - self.MARGIN]
+        pos = [(self.FOV[0]-2*self.MARGIN)*np.random.rand() + self.MARGIN,
+              (self.FOV[1]-2*self.MARGIN)*np.random.rand() + self.MARGIN]
         
         diffusionConstant = (
                 (self.DELTAT*self.BOLTZMANNCONSTANT*self.TEMPERATURE)

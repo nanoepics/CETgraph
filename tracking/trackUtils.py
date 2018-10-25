@@ -300,11 +300,17 @@ class trackUtils:
 
         trackUtils.writeMetadata(trackUtils.getSettings(trackingObject), folder + "/metadata.txt")
         trackUtils.writeMetadata(trackUtils.getResults(trackingObject), folder + "/metadata.txt")
+        try:
+            np.savetxt(folder + "\\diffusionConstant" + str(trackingObject.runs) + ".csv",
+                       trackingObject.diffusionConstants, delimiter=",")
+        except:
+            print("No diffusionConstants")
+            
 
-        np.savetxt(folder + "\\diffusionConstant" + str(trackingObject.runs) + ".csv",
-                   trackingObject.diffusionConstants, delimiter=",")
         np.savetxt(folder + "\\particleDiameters" + str(trackingObject.runs) + ".csv", trackingObject.particleDiameters,
                    delimiter=",")
+
+            
         np.savetxt(folder + "\\massDistribution.csv", trackingObject.averageMass, delimiter=",")
         np.savetxt(folder + "\\pathLengths" + str(trackingObject.runs) + ".csv", trackingObject.visibleInFrames,
                    delimiter=",")
@@ -314,16 +320,19 @@ class trackUtils:
                    trackingObject.eccentricityWeights, delimiter=",")
         np.savetxt(folder + "\\mobility" + str(trackingObject.runs) + ".csv", trackingObject.averageMobilities,
                    delimiter=",")
-        np.savetxt(folder + "\\mobilityWeights" + str(trackingObject.runs) + ".csv",
-                   trackingObject.averageMobilityWeights, delimiter=",")
-        np.savetxt(folder + "\\outerPointList" + str(trackingObject.runs) + ".csv",
-                   np.array(trackingObject.outerPointList), delimiter=",")        
-        np.savetxt(folder + "\\outerPointDistance" + str(trackingObject.runs) + ".csv",
-                   trackingObject.outerPointDistance, delimiter=",")              
-        np.savetxt(folder + "\\mobilityPerTrackList" + str(trackingObject.runs) + ".csv",
-                   trackingObject.mobilityPerTrackList, delimiter=",")           
-        np.savetxt(folder + "\\outerPointDistanceWeights" + str(trackingObject.runs) + ".csv",
-                   trackingObject.outerPointDistanceWeights, delimiter=",")
+        try:
+            np.savetxt(folder + "\\mobilityWeights" + str(trackingObject.runs) + ".csv",
+                       trackingObject.averageMobilityWeights, delimiter=",")
+            np.savetxt(folder + "\\outerPointList" + str(trackingObject.runs) + ".csv",
+                       np.array(trackingObject.outerPointList), delimiter=",")        
+            np.savetxt(folder + "\\outerPointDistance" + str(trackingObject.runs) + ".csv",
+                       trackingObject.outerPointDistance, delimiter=",")              
+            np.savetxt(folder + "\\mobilityPerTrackList" + str(trackingObject.runs) + ".csv",
+                       trackingObject.mobilityPerTrackList, delimiter=",")           
+            np.savetxt(folder + "\\outerPointDistanceWeights" + str(trackingObject.runs) + ".csv",
+                       trackingObject.outerPointDistanceWeights, delimiter=",")
+        except:
+            print("No mobility calculated.")
         trackingObject.links.to_csv(folder + "\\tracks" + str(trackingObject.runs) + ".csv")  
 
         return

@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+﻿# -*- coding: utf-8 -*-
 """
 Created on Thu Mar 29 15:32:33 2018
 
@@ -105,11 +105,11 @@ class Tracking:
         self.particleDiameter = particleDiameter  # particle diameter in pixels
         self.minMass = minimumMass  # minimal mass particle
         self.maxMass = maximumMass  # maximum mass particle (intensity)
-        self.maxTravelDistance = 10  # maximum distance travelled between frames
+        self.maxTravelDistance = 5  # maximum distance travelled between frames
         self.minimumMSD = 0.05  # minimum mean square displacement for calculation D, because D is calculated for each particle individually, this parameter is not important
         self.maxFrameMemory = frameMemory  # If particle disappears, it will be a new unique particle after this number of frames
         self.useFrames = useFrames  # if < 0, all frames will be used.
-        self.minimumParticleLifetime = 10  # minimum number of frames a particle should be located. Otherwise it is deleted
+        self.minimumParticleLifetime = 5  # minimum number of frames a particle should be located. Otherwise it is deleted
         self.cameraFPS = FPS  # camera FPS if < 0, script will try to get from metadata file
         self.micronPerPixel = micronPerPixel  # pixel size in um
         self.removeBackgroundOffset = 50  # subtracts the image n frames before the current frame to remove bg
@@ -240,6 +240,9 @@ class Tracking:
         self.links = tp.link_df(self.particles, self.maxTravelDistance, memory=self.maxFrameMemory)
         if (filtering):
             self.links = self.filterLinks(silent=silent)
+        else:
+            self.linksWithoutDriftCorrection = self.links.copy()
+            self.drift = tp.compute_drift(self.links)
         return self.links
 
     def filterLinks(self, silent=False):
@@ -253,7 +256,7 @@ class Tracking:
         print("Number of links after removing paths shorter than %d: %d " % (self.minimumParticleLifetime, len(links)))
         links = links[((links['mass'] < self.maxMass) & (links['ecc'] < self.maximumEccentricity))]
         print("Number of links after removing high intensity and particle with high eccentricity: %d " % len(links))
-        self.linksWithoutDriftCorrection = links
+        self.linksWithoutDriftCorrection = links.copy()
 
         self.drift = tp.compute_drift(links)
         links = tp.subtract_drift(links.copy(), self.drift)
@@ -463,6 +466,8 @@ class Tracking:
         outerPoints = [0,0,0,0]
         for i in yValues.index.values:
            temp = self._getPointsWithLargestDistance(xValues[i],yValues[i])
+           if(temp == None):
+               continue
            outerPoints = [temp[1][0],temp[1][1],temp[2][0],temp[2][1]]
            if(outerPoints == None):
               continue

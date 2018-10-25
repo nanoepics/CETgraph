@@ -94,7 +94,7 @@ trackingObject.currentPath = outputPath
 
 trackingObject.minimumMSD = 0.05  # minimum mean square displacement. Use to prevent stuck particles.
 trackingObject.detectParticles(silent=False)
-trackingObject.linkParticles(silent=False)  # link different frames
+trackingObject.linkParticles(silent=False, filtering=False)  # link different frames
 
 trackingObject.calculateDiffusion(maxLagTime=5)  # maxLagTime is how many frames will be used per fit
 trackingObject.calculateMobility(direction='y')
