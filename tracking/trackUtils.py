@@ -204,7 +204,8 @@ class trackUtils:
             dest = dest + ".avi"
         print("Saving to AVI: " + dest)
         maxPixelValue = np.amax(data)
-        data = (1.0 * data / maxPixelValue) * 255.0
+        if(maxPixelValue != 255):
+            data = (1.0 * data / maxPixelValue) * 255.0
         data = np.array(data)
         data = data.astype(np.uint8)
         fourcc = cv2.VideoWriter_fourcc(*format)

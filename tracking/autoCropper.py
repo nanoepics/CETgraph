@@ -1,7 +1,7 @@
 
 # coding: utf-8
 
-# In[53]:
+# In[54]:
 
 
 import os
@@ -19,18 +19,34 @@ import scipy.optimize
 import trackpy as tp
 
 
+minWidth = 90
+maxWidth = 200
+minHeight = 45
+maxHeight = 100
+
+
+
+
+
+#
 
 import matplotlib.pyplot as plt
+
+sys.setrecursionlimit(10000)
 
 spec = importlib.util.spec_from_file_location("trackUtils.trackUtils", "D:\\Onderzoek\\git\\tracking\\trackUtils.py")
 trackUtils = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(trackUtils)
 
 
-if(len(sys.argv) < 2):
-    path = "D:\\Onderzoek\\data\\18-08-08\\6 Hz\\run1\\exposedImage.png"
+if(len(sys.argv) == 1):
+    path = "D:\\Onderzoek\\data\\Tang\\image4.png"
+    
 else:
     path = sys.argv[1]
+    
+
+
 
 splittedPath = path.split('\\')
 folderPath = ""
@@ -46,28 +62,30 @@ print("saving to %s" % folderPath)
     
 try:
     image = Image.open(path)
+    if((np.array(image).shape)[2]==3):
+        image = np.array(image)[:,:,0]
 except:
     print ("Unable to load image")
     
 
 
 
-gaussianBlurRadius = 5 #According Savin and Doyle this should be 1, but sometimes noisier data requires larger radius
-kernelDiskWidth = 15 #Larger than apparent particle size in px. This is used to select canditate traces
-kernelDiskParticleTrace = 5 # same as tracking diameter. This is smaller than kernelDiskWidth. 
+gaussianBlurRadius = 7 #According Savin and Doyle this should be 1, but sometimes noisier data requires larger radius
+kernelDiskWidth = 40 #Larger than apparent particle size in px. This is used to select canditate traces
+kernelDiskParticleTrace = 10 # same as tracking diameter. This is smaller than kernelDiskWidth. 
 
-binaryThreshold = 20 #arbitrary, depends on acquisition, so different each experiment
+binaryThreshold = 10 #arbitrary, depends on acquisition, so different each experiment
 
 selectPixelsWithValue = 0.0 
-minArea = 40 #minimum area of cropped image
+minArea = 100
 borderMargin = 10 # does not select particles too close to the boundary 
 minMass = 350 #minimum intenstiy required to suppress local maxima in noise outside tracks. Inside tracks are supressed by selecting largest distance
-kernelDiskParticleTrace = 20 #dilation kernel size to find local maxima for particle trace sizes.
+kernelDiskParticleTrace = 20
 
 
 
 
-# In[54]:
+# In[55]:
 
 
 def makeDiskShapedKernel(width):
@@ -131,7 +149,7 @@ def getMassInDisk(frame, x0, y0, radius):
                 sum += frame[x][y]
     return sum
 
-def selectSameValues(image, value, pixelsInArea, i0, j0):    
+def selectSameValues(image, value, pixelsInArea, nextPixels ,i0, j0):    
     imin, jmin, imax, jmax = (0,0,len(image), len(image[0]))
     for i in range(-1,2):
         for j in range(-1, 2):
@@ -144,36 +162,47 @@ def selectSameValues(image, value, pixelsInArea, i0, j0):
             if(image[i1][j1] == value):
                 pixelsInArea.append([i1, j1])
                 image[i1][j1] = value +1
-                selectSameValues(image, value, pixelsInArea, i1, j1)
+                #selectSameValues(image, value, pixelsInArea, i1, j1)
+                nextPixels.append([i1, j1])
                 
 def gauss(x, a, mu, sigma):
     return a*np.exp(-(x-mu)**2/(2.0*sigma**2))
 
 
-# In[55]:
+# In[56]:
 
 
-
-blurredImage = cv2.GaussianBlur(np.array(image), (gaussianBlurRadius, gaussianBlurRadius), 0)
+if(gaussianBlurRadius > 0):
+    blurredImage = cv2.GaussianBlur(np.array(image), (gaussianBlurRadius, gaussianBlurRadius), 0)
+else:
+    blurredImage = image.copy()
 kernel = makeDiskShapedKernel(kernelDiskWidth+1)
 dilationKernel = makeDiskShapedKernel(kernelDiskWidth)
 backgroundImage = cv2.filter2D(np.array(image), -1, kernel/np.sum(kernel))
+
+
 masks = []
 
 
-# In[56]:
+# In[57]:
 
 
 binary = []
 
 mask = np.subtract(image, backgroundImage, dtype=np.int32)
 mask = np.clip(mask, binaryThreshold, binaryThreshold+1)-binaryThreshold
-binary = mask
+
+binary = mask.copy()
+
+openingKernel = makeDiskShapedKernel(6)
+mask = cv2.morphologyEx(1.0*mask, cv2.MORPH_OPEN, np.array([1,1]*2))
+
 mask = cv2.dilate(1.0*mask, np.uint8(dilationKernel), iterations = 1)
 mask = 1 - mask
 
 
-# In[57]:
+
+# In[58]:
 
 
 pixels = []
@@ -196,11 +225,14 @@ print("sum: %d. avg: %f. frac px background: %f. Variance (sigma^2): %f, strd de
     
 
 
-# In[58]:
+# In[59]:
+
+
+
 
 
 plt.figure()
-plt.imshow(image)
+plt.imshow(np.array(image))
 plt.show()
 
 plt.figure()
@@ -236,48 +268,98 @@ print("(%d %d), (%d, %d), (%d, %d) , (%f, %f)" % (np.amin(image),np.amax(image),
                 
 
 
-# In[72]:
+# In[60]:
+
+
 
 
 
 
 imagesOfTraces = []
+maskOfTraces = []
+
 copyOfMask = mask.copy()
 pixelsInArea = []
 
+maxI = len(mask)
+maxJ = len(mask[0])
 
 
-for i in range(len(mask)):
-    for j in range(len(mask[i])):
+
+for i in range(maxI):
+    for j in range(maxJ):
         if(copyOfMask[i][j] == selectPixelsWithValue):
             pixelsInArea.append([i, j])
-            selectSameValues(copyOfMask, selectPixelsWithValue, pixelsInArea,i, j)
+
+            
+            nextPixels = []
+            nextPixelsTemp = []
+            selectSameValues(copyOfMask, selectPixelsWithValue, pixelsInArea,nextPixels, i, j)
+            while(nextPixels != []):
+                newi, newj = nextPixels[-1]
+                del nextPixels[-1]
+                selectSameValues(copyOfMask, selectPixelsWithValue, pixelsInArea,nextPixels, newi, newj)
+
+                    
+            
             if(len(pixelsInArea) < minArea):
+                print("pixelsInArea not large enough")
+                pixelsInArea = []
                 continue
             p0 = [np.amin(np.array(pixelsInArea)[:,0]), np.amin(np.array(pixelsInArea)[:,1])]
             p1 = [np.amax(np.array(pixelsInArea)[:,0]), np.amax(np.array(pixelsInArea)[:,1])]
             
-            pixelsInArea = []
             
-            
-            if(p0[0]<borderMargin or p0[1] < borderMargin or p1[0] > (len(copyOfMask) - borderMargin) or p1[1] > (len(mask[0])-borderMargin)):
+            if((p0[0] < borderMargin)
+               or (p0[1] < borderMargin)
+               or (p1[0] > (len(copyOfMask) - borderMargin))
+               or (p1[1] > (len(mask[0])-borderMargin))):
+                print("too close to boundary")
+                pixelsInArea = []
+
                 continue
+                       
+            if( 
+               (np.abs(p1[1] - p0[1]) < minWidth)
+               or (np.abs(p1[1] - p0[1]) > maxWidth)
+               or (np.abs(p1[0] - p0[0]) < minHeight)
+               or (np.abs(p1[0] - p0[0]) > maxHeight)
+               ):
+                print("wrong shape:")
+                print("%s, %s" % (p1[1] - p0[1], p1[0] - p0[0]))
+                pixelsInArea = []
+                continue
+
+            trace = np.zeros((p1[0]-p0[0]+1,p1[1]-p0[1]+1))
+            for pixel in pixelsInArea:
+                trace[pixel[0]-p0[0]][pixel[1]-p0[1]] = np.array(image)[pixel[0]][pixel[1]]
+
+            #trace = np.array(image)[p0[0]:p1[0], p0[1]:p1[1]].astype(np.int32())
+            #trace = trace - 4095*np.array(mask)[p0[0]:p1[0], p0[1]:p1[1]].astype(np.uint16())
+            #trace = np.clip(trace, 0, 65535).astype(np.uint16)
+            imagesOfTraces.append(trace)       
             
-            trace = np.array(image)[p0[0]:p1[0], p0[1]:p1[1]].astype(np.int32())
-            trace = trace - 4095*np.array(mask)[p0[0]:p1[0], p0[1]:p1[1]].astype(np.uint16())
-            trace = np.clip(trace, 0, 65535).astype(np.uint16)
-            imagesOfTraces.append(trace)
+            plt.figure()
+            plt.imshow(np.array(mask)[p0[0]:p1[0],p0[1]:p1[1]])
+            plt.show() 
+            
+            plt.figure()
+            plt.imshow(trace)   
+            plt.show()
+
+
+            pixelsInArea = []
 
 #plt.figure()
 #plt.imshow(copyOfMask)
 #plt.show()
 
 del(copyOfMask)
-len(imagesOfTraces)
-            
+print(len(imagesOfTraces)) 
+               
 
 
-# In[78]:
+# In[61]:
 
 
 
@@ -366,28 +448,4 @@ np.savetxt(folderPath + "detectedTraces\\lengths.csv", distances, delimiter=",")
 np.savetxt(folderPath + "detectedTraces\\angles.csv", angles, delimiter=",")
 np.savetxt(folderPath + "detectedTraces\\points.csv", detectedPoints, delimiter=",")
            
-
-
-# In[61]:
-
-
-detectedPoints
-
-
-# In[62]:
-
-
-a = [2].extend(points)
-
-
-# In[34]:
-
-
-a
-
-
-# In[76]:
-
-
-trace
 
