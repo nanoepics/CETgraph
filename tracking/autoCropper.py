@@ -1,5 +1,4 @@
-"""
-   CETgraph.tracking.autoCropper.py
+"""   CETgraph.tracking.autoCropper.py
    ==================================
     This script uses methods similar to [1] and [2] to features monochromatic
     microscope images. This should be used together with subtractBackground.py.
@@ -15,7 +14,7 @@
    Colloidal Studies
 , Journal of Colloid and Interface Science, 179, 298-310, 1996
 
-    .. lastedit:: 06-11-2018
+    .. lastedit:: 13-11-2018
     .. sectionauthor:: Peter Speets <p.n.a.speets@students.uu.nl>
 """
 
@@ -40,26 +39,31 @@ spec = importlib.util.spec_from_file_location(
 trackUtils = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(trackUtils)
 
+settingsFile = ""
+
+
 #Found features that are smaller or larger than these dimensions will be
 #rejected. Numbers in pixels.
 
-minWidth = 90
-maxWidth = 200
-minHeight = 45
-maxHeight = 100
-minArea = 100 
+minWidth = 15
+maxWidth = 40
+minHeight = 30
+maxHeight = 70
+minArea = 100
+minAspectRatio = 1.3
+maxAspectRatio = 9999.0
 
 #According Savin and Doyle the blur radius should be 1,
 #but sometimes noisier data requires larger radius.
 
-gaussianBlurRadius = 7 
+gaussianBlurRadius = 3
 
  #The kernel disk width is larger than apparent particle size in px. 
  #This is used to select canditate features.
-kernelDiskWidth = 40
+kernelDiskWidth = 15
 
 # same as tracking diameter. This is smaller than kernelDiskWidth. 
-kernelDiskParticleTrace = 20 
+kernelDiskParticleTrace = 10 
 
 #arbitrary, depends on acquisition, so different each experiment. Higher
 #setting means that less traces are found.
@@ -77,16 +81,50 @@ minMass = 350
 
 #The script always assumes bright features and dark background, so this should
 #be 0.0.
-selectPixelsWithValue = 0.0 
+selectPixelsWithValue = 0.0
 
+#A higher opening kernel size means more small features are filtered.
+openingKernelSize = 6
+
+#The margin values below are typically 0, but if imaged close to the fibre or
+#the electrodes, these parematers might be increased to prevent the 
+#light from the fibre or the electrodes from being interpreted as particle.
+#If -1 value is ignored.
+
+minX = -1  # if smaller than margin, this is margin.
+minY = -1  # if smaller than margin, this is margin.
+maxX = -1  # if len(image) - maxX smaller than margin, len(image) - maxX is margin.
+maxY = -1  # if len(image) - maxY smaller than margin, len(image) - maxY is margin.
 
 
 #loading data if this script is run from IDE instead of terminal.
-if(len(sys.argv) == 1):
+if(len(sys.argv) < 2):
     path = "D:\\Onderzoek\\data\\Tang\\image4.png"
-    
 else:
     path = sys.argv[1]
+
+if(len(sys.argv) < 3):
+    settingsFile = ""
+else:
+    settingsFile = sys.argv[2]
+
+
+if(settingsFile != ""):
+    with open(settingsFile) as file:
+        text = file.read()
+    listOfEntries = [entry.replace(" " , "") for entry in text.split("\n")]
+    
+for entry in listOfEntries:
+    if "=" not in entry:
+        continue
+    statement = "%s = %s" % (entry.split("=")[0], entry.split("=")[1])
+    print(statement)
+    exec(statement)
+	
+	
+	
+
+
 
 
 #Find the path of the input image:
@@ -105,10 +143,10 @@ print("saving to %s" % folderPath)
     
 try:
     image = Image.open(path)
-    if((np.array(image).shape)[2]==3):
+    if(len(np.array(image).shape)==3):
         image = np.array(image)[:,:,0]
-except:
-    print ("Unable to load image")
+except Exception as e:
+    print ("Unable to load image:\n%s" % e)
     
 
 
@@ -272,19 +310,16 @@ analysis more easy.).
 
 """
 
+
 masks = []
-
-
-
-
 binary = []
 
-mask = np.subtract(image, backgroundImage, dtype=np.int32)
+mask = np.subtract(blurredImage, backgroundImage, dtype=np.int32)
 mask = np.clip(mask, binaryThreshold, binaryThreshold+1)-binaryThreshold
 
 binary = mask.copy()
 
-openingKernel = makeDiskShapedKernel(6)
+openingKernel = makeDiskShapedKernel(openingKernelSize)
 mask = cv2.morphologyEx(1.0*mask, cv2.MORPH_OPEN, np.array([1,1]*2))
 
 mask = cv2.dilate(1.0*mask, np.uint8(dilationKernel), iterations = 1)
@@ -338,11 +373,11 @@ if(mpl.get_backend() != "Agg"):
 
 
 
-    print("(%d %d), (%d, %d), (%d, %d) , (%f, %f)" % (np.amin(image),np.amax(image),
-                                       np.amin(blurredImage), np.amax(blurredImage),
-                                       np.amin(backgroundImage), np.amax(backgroundImage),
-                                       np.amin(mask), np.amax(mask)
-                                      ))
+print("(%d %d), (%d, %d), (%d, %d) , (%f, %f)" % (np.amin(image),np.amax(image),
+                                    np.amin(blurredImage), np.amax(blurredImage),
+                                    np.amin(backgroundImage), np.amax(backgroundImage),
+                                    np.amin(mask), np.amax(mask)
+                                   ))
 
 
 """
@@ -369,7 +404,7 @@ checked if they have the same values. The cropped image is the rectangle that
 contains all pixels. If the recursive blob finding is done, the pixels are set
 to 1 and the loop continues until it finds a 0.0 again.
 
-In the after cropping the cropped image is checked for the criterions set in
+After cropping the cropped image is checked for the criterions set in
 this script.
 
 """
@@ -395,8 +430,8 @@ for i in range(maxI):
                                  newi, newj)
 
            
-            
-            if(len(pixelsInArea) < minArea):
+            area = len(pixelsInArea)
+            if(area < minArea):
                 print("pixelsInArea not large enough")
                 pixelsInArea = []
                 continue
@@ -425,12 +460,53 @@ for i in range(maxI):
                 pixelsInArea = []
                 continue
             
-            print("Feature found that passed conditions.")
+			
+            aspectRatio = ( np.abs(p1[0] - p0[0])/np.abs(p1[1] - p0[1]) )         
+            if(aspectRatio > maxAspectRatio):
+                print("Aspect ratio too large: %f > %f" % (aspectRatio, maxAspectRatio))
+                pixelsInArea = []
+                continue 
+                
+            if(aspectRatio < minAspectRatio):
+                print("Aspect ratio too small: %f < %f" % (aspectRatio, minAspectRatio))
+                pixelsInArea = []
+                continue   
+			
+            if(p0[0] < minX and minX != -1):
+                print("Particle too far to the left")
+                pixelsInArea = []
+                continue        
+                
+            if(p0[1] < minY and minY != -1):
+                print("Particle too far to the top or bottom")
+                pixelsInArea = []
+                continue 
+                
+            if(p1[0] > maxX and maxX != -1):
+                print("Particle too far to the right")
+                pixelsInArea = []
+                continue      
+                
+            if(p1[1] > maxY and maxY != -1):
+                print("Particle too far to the top or bottom")
+                pixelsInArea = []
+                continue    			
+			
             
             trace = np.zeros((p1[0]-p0[0]+1,p1[1]-p0[1]+1))
             for pixel in pixelsInArea:
                 trace[pixel[0]-p0[0]][pixel[1]-p0[1]] = np.array(image)[pixel[0]][pixel[1]]
 
+            mass = np.sum(trace)
+            if(mass < minMass):
+                print("Intensity too small. %d < %d" % (mass, minMass))
+                pixelsInArea = []
+                continue    
+
+				
+				
+            print("Feature found with size %d and mass %d " % (area, mass))  				
+				
             #trace = np.array(image)[p0[0]:p1[0], p0[1]:p1[1]].astype(np.int32())
             #trace = trace - 4095*np.array(mask)[p0[0]:p1[0], p0[1]:p1[1]].astype(np.uint16())
             #trace = np.clip(trace, 0, 65535).astype(np.uint16)
@@ -460,7 +536,9 @@ print(len(imagesOfTraces))
 
 The cropping is done, now the length of the traces will be calculated by using
 the higher intensity at the tips of the trace. As of writing (06-11-18) this
-does not fully work on the test data.
+does not fully work on the test data, the code below is in progress. For the
+reader only interested in the cropping, only the output of the images is below 
+this comment block.
 
 """
 dilationKernel = makeDiskShapedKernel(kernelDiskParticleTrace+1)
@@ -475,6 +553,13 @@ try:
 except:
     print("Could not create folder in %s" % (folderPath + "detectedTraces"))
 
+
+exportMask = 255.0*mask
+exportMaskImage = Image.fromarray(exportMask.astype(np.uint8))
+exportMaskImage.save(folderPath + "detectedTraces\\mask.png")
+	
+	
+	
 for traceNumber, traceImage in enumerate(imagesOfTraces):
 
     dilatedImage  = cv2.dilate(np.array(traceImage), np.uint8(dilationKernel), iterations = 1).astype(np.uint16())
@@ -556,3 +641,30 @@ np.savetxt(folderPath + "detectedTraces\\angles.csv", angles, delimiter=",")
 np.savetxt(folderPath + "detectedTraces\\points.csv", detectedPoints, delimiter=",")
            
 
+metaDataText = "\
+minWidth = %d\n\
+maxWidth = %d\n\
+minHeight = %d\n\
+maxHeight = %d\n\
+minArea = %d\n\
+minAspectRatio = %f\n\
+maxAspectRatio = %f\n\
+gaussianBlurRadius = %d\n\
+kernelDiskWidth = %d\n\
+kernelDiskParticleTrace = %d\n\
+binaryThreshold = %d\n\
+borderMargin = %d\n\
+minMass = %d\n\
+selectPixelsWithValue = %f\n\
+openingKernelSize = %d\n\
+minX = %d\n\
+minY = %d\n\
+maxX = %d\n\
+maxY = %d\n\
+" %(minWidth, maxWidth, minHeight, maxHeight, minArea, minAspectRatio,
+ maxAspectRatio, gaussianBlurRadius,kernelDiskWidth,kernelDiskParticleTrace,
+ binaryThreshold,borderMargin,minMass,selectPixelsWithValue,openingKernelSize,
+ minX, minY, maxX, maxY)
+		   
+with open(folderPath + "detectedTraces\\metaData.txt", "w") as f:
+    f.write(metaDataText) 
