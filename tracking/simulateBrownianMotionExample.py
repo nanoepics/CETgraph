@@ -16,17 +16,17 @@ from trackUtils import trackUtils
 
 
 if(len(sys.argv) == 1):
-    outputPath = "D:\\Onderzoek\\data\\simulation\\18-10-05\\"
+    outputPath = "D:\\Onderzoek\\data\\simulation\\18-11-20\\"
 else:
     outputPath = sys.argv[1]
 
 if(len(sys.argv) > 1):
     numberOfFrames = int(sys.argv[2])
 else:
-    numberOfFrames = 1000
+    numberOfFrames = 120
 
 
-
+micronPerPixel = 0.225664
 FPS = 55
 stepsPerFrame = 100
 stepsExposed = 100
@@ -35,6 +35,10 @@ particleSignal = 1700 / stepsExposed
 
 exposureTime = stepsExposed/(FPS*stepsPerFrame)
 deltat = 1/(FPS*stepsPerFrame)
+
+targetTrackLength = [15.0, 0.0] #track length as if the mobility of particle is 1.0
+
+electricField = [length/stepsPerFrame for length in targetTrackLength]
 
 
 print("FPS: %f, Frame Time: %f, exposure Time: %f, step delta t: %f, \
@@ -45,13 +49,16 @@ print("FPS: %f, Frame Time: %f, exposure Time: %f, step delta t: %f, \
 # required: FOV, deltat, micronPerPixel 
 #optional: temperature = 293, viscosity = 0.001, margin = 20
 
-simulation = simulateBrownianMotion.BrownianSimulation((300, 300), deltat, 0.225664, 
+simulation = simulateBrownianMotion.BrownianSimulation((100, 100), deltat, micronPerPixel, 
                                                        noiseBackLevel = 225.0, 
-                                                       gaussianNoiseLevel = 25.0)
+                                                       gaussianNoiseLevel = 25.0,
+                                                       electricField = electricField,
+                                                       electricFrequency = 10.0,
+                                                       electricSignalType = 's')
 
 
 simulation.MARGIN = 130
-simulation.addParticle(100, particleSignal, 2.5, PSFSize = (15,15))
+simulation.addParticle(100, particleSignal, 2.5, PSFSize = (15,15), mobility=1.0)
 simulation.MARGIN = 10
 
 simulation.particles[0].particleID

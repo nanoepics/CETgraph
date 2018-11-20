@@ -40,10 +40,8 @@ class Particle:
         self.sigma = sigma #in px^2
         self.intensity = intensity #float, but will be pixel value
         self.PSFSize = PSFSize #in px
-        self.mobility = mobility #in micron s^-1 V^-1 m^-1
+        self.mobility = mobility #in pixel DELTAT^-1 field^-1
         self.diffusionConstant = diffusionConstant # in px^2/DELTAT
-
-        
         
         #A new particle is added, so increase Particle.particlecount
         Particle._particleCount += 1
@@ -54,7 +52,10 @@ class BrownianSimulation:
     
     def __init__(self, FOV, deltat, micronPerPixel, 
                  temperature = 293, viscosity = 0.001, margin = 20,
-                 noiseBackLevel = 0.0, gaussianNoiseLevel = 0.0):
+                 noiseBackLevel = 0.0, gaussianNoiseLevel = 0.0,
+                 electricField = [0.0, 0.0],
+                 electricFrequency = -1.0,
+                 electricSignalType = 'b'):
         """
         TODO: docstring
         """
@@ -70,7 +71,23 @@ class BrownianSimulation:
         self.noiseBackLevel = noiseBackLevel #in pixel value.
         self.gaussianNoiseLevel = gaussianNoiseLevel # in pixel value
         self.cameraOn = False
+        self.electricAmplitude = electricField.copy()
+        self.electricFrequency = electricFrequency
         
+        #the three values below are the counters set by simulateBatch. If the 
+        #simulation is run without simulateBatch with nextStep function only, 
+        #these variables need to be set explicitly in the BrownianSimulation
+        #object
+        #
+        self.maxFrames = 0
+        self.stepsPerFrame = 0
+        self.stepsExposed = 0
+
+        if(electricSignalType == 's'):
+            self.electricField = [0.0, 0.0]
+        else:
+            self.electricField = electricField.copy()
+       
         #self.particles contains particle objects. addParticle adds particles
         #in this list. removeParticle removes particles from this list. 
         #add 
@@ -137,8 +154,8 @@ class BrownianSimulation:
             return frame
         frame += np.random.normal(loc = mu, scale=sigma, size = frame.shape)
         return frame
-        
-        
+    
+    
     def _drawParticle(self, particle):
         #This function adds the PSF of the particle to the image array.
 
@@ -160,18 +177,32 @@ class BrownianSimulation:
                     self.image[i][j] += particle.intensity*np.exp(-r)
         return self.image
 
+    @staticmethod
+    def applyElectrophoreticMovement(particle, field):
+        """
+        The Euler integrated electric field is added to the position of particle
+        particle.
+        """
+        particle.pos += [particle.mobility*f for f in field]
 
-    def nextStep(self, frameNumber = 0):
+    def updateField(self, frameNumber, step):
+        stepsPerPeriod = 1/(self.DELTAT*self.electricFrequency)
+        phase = 2*math.pi*(math.fmod(step+frameNumber*self.stepsPerFrame,stepsPerPeriod)/stepsPerPeriod)
+        self.electricField = [a*math.sin(phase) for a in self.electricAmplitude]
+
+    def nextStep(self, frameNumber, step):
         
         #new positions for each particle:
         
         tableEntry = np.array([])
+        self.updateField(frameNumber, step)
         for particle in self.particles:
             sigma = np.sqrt(2*particle.diffusionConstant)
             #random displacement dr:
             dr = np.random.normal(loc=0.0, scale=sigma, size=2)
             #move particle:
             particle.pos += dr
+            self.applyElectrophoreticMovement(particle, self.electricField)
             #Apply periodic boundary conditions:
             particle.pos = (np.mod(np.subtract(particle.pos, self.MARGIN), 
                                    np.subtract(self.FOV, 2*self.MARGIN))
@@ -185,6 +216,7 @@ class BrownianSimulation:
         
     def simulateBatch(self, maxFrames, stepsPerFrame, stepsExposed):
         
+        
         #maxSteps is the number of frames the simulation will run.
         #stepsPerFrame is the number of steps in one
         #frame taken by the camera. Choose this number so it matches the FPS 
@@ -193,6 +225,7 @@ class BrownianSimulation:
         #of steps that will be accumulated in one image.
         
         #stepsExposed < stepsPerFrame
+        
         try:
             assert(stepsExposed <= stepsPerFrame)
         except AssertionError as error:
@@ -200,7 +233,12 @@ class BrownianSimulation:
                     "Exposure time should be less than the time per frame. \
                     stepsExposed = {}, stepsPerFrame = {}".format(
                     stepsExposed, stepsPerFrame))
-            
+        
+        #make the counter boundaries global:
+        self.maxFrames = maxFrames
+        self.stepsPerFrame = stepsPerFrame
+        self.stepsExposed = stepsExposed
+        
         #number of steps the camera does not image:
         deadTime = stepsPerFrame - stepsExposed 
         
@@ -212,7 +250,7 @@ class BrownianSimulation:
             time = datetime.datetime.now() - timeStarted
             print("Time: %s Frame: %d/%d" % (time, frame, maxFrames))
             for step in range(deadTime):
-                self.nextStep(frameNumber=frame)
+                self.nextStep(frame, step)
             #redraw image. Particles only added in the loop.
             self.image = self.BACKGROUND.copy()
             self.image = self.addGaussianNoise(self.image,
@@ -222,7 +260,7 @@ class BrownianSimulation:
             self.cameraOn = True
             for step in range(stepsExposed):
                 self._addStepToImage()
-                self.nextStep(frameNumber=frame)
+                self.nextStep(frame, step)
             self.frames.append(self.image)
             self.cameraOn = False
 
