@@ -320,7 +320,7 @@ mask = np.clip(mask, binaryThreshold, binaryThreshold+1)-binaryThreshold
 binary = mask.copy()
 
 openingKernel = makeDiskShapedKernel(openingKernelSize)
-mask = cv2.morphologyEx(1.0*mask, cv2.MORPH_OPEN, np.array([1,1]*2))
+mask = cv2.morphologyEx(1.0*mask, cv2.MORPH_OPEN, openingKernel.astype(np.uint8))
 
 mask = cv2.dilate(1.0*mask, np.uint8(dilationKernel), iterations = 1)
 
