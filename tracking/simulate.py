@@ -97,7 +97,7 @@ class SingleFrame:
         # and PSF distribution if necessary
         parx = np.random.uniform(0, self.xfov, size=(self.numpar, 1))
         pary = np.random.uniform(0, self.yfov, size=(self.numpar, 1))
-        pari = np.random.uniform(1, self.numpar, size=(self.numpar, 1)) * self.signal
+        pari = np.random.uniform(1, self.numpar, size=(self.numpar, 1)) * self.signal #to create a distribution of intensities
         self.loca = np.concatenate((parx, pary, pari), axis=1)
         self.loca = self.nextRandomStep()
         return self.loca
