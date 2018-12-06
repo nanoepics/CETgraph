@@ -14,7 +14,7 @@
    Colloidal Studies
 , Journal of Colloid and Interface Science, 179, 298-310, 1996
 
-    .. lastedit:: 13-11-2018
+    .. lastedit:: 03-12-2018
     .. sectionauthor:: Peter Speets <p.n.a.speets@students.uu.nl>
 """
 
@@ -62,8 +62,11 @@ gaussianBlurRadius = 3
  #This is used to select canditate features.
 kernelDiskWidth = 15
 
+dilationDiskWidth = 25
+
 # same as tracking diameter. This is smaller than kernelDiskWidth. 
 kernelDiskParticleTrace = 10 
+
 
 #arbitrary, depends on acquisition, so different each experiment. Higher
 #setting means that less traces are found.
@@ -78,13 +81,18 @@ borderMargin = 10
 #selection parameters are chosen well, the closing and minArea should make
 #this condition redundant.
 minMass = 350 
+maxMass = 100000
 
 #The script always assumes bright features and dark background, so this should
 #be 0.0.
 selectPixelsWithValue = 0.0
 
-#A higher opening kernel size means more small features are filtered.
+#
+#A higher opening opening kernel size means more small features are filtered.
+#The closing is done before the opening to fill holes in features. Otherwise 
+#the closing operator will erode them.
 openingKernelSize = 6
+closingKernelSize = 4
 
 #The margin values below are typically 0, but if imaged close to the fibre or
 #the electrodes, these parematers might be increased to prevent the 
@@ -131,8 +139,8 @@ for entry in listOfEntries:
 
 splittedPath = path.split('\\')
 folderPath = ""
-print(splittedPath[-1][-4:])
-if(splittedPath[-1][-4:] == ".png"):
+
+if((splittedPath[-1][-4:] == ".png") or (splittedPath[-1][-3:] == ".h5")):
     for e in splittedPath[:-1]:
         folderPath += (e + "\\")
 else:
@@ -140,16 +148,41 @@ else:
     path += "exposedImage.png"
 
 print("saving to %s" % folderPath)
-    
-try:
+
+if((path[-4:] == ".png")):
     image = Image.open(path)
-    if(len(np.array(image).shape)==3):
-        image = np.array(image)[:,:,0]
-except Exception as e:
-    print ("Unable to load image:\n%s" % e)
+    try:
+        image = Image.open(path)
+        if((len(np.array(image).shape))==3):
+            image = np.array(image)[:,:,0]
+    except:
+        print ("Unable to load image")
+elif((path[-3:] == ".h5") or (path[-5:] == ".hdf5")):
+    image = trackUtils.trackUtils.loadData(path)
+    if((len(np.array(image).shape))==3):
+        image = np.array(image)[0,:,:]
+
+print("Shape of image is: %d x %d " % np.array(image).shape)
     
 
 
+if(minY > 0 and maxY < 0):
+    image = image[minY:]
+
+if(minY > 0 and maxY > 0):
+    image = image[minY:maxY]
+    
+if(maxY > 0 and minY < 0):
+    image = image[:maxY]
+
+if(minX > 0 and maxX < 0):
+    image = image[:,minX:]
+    
+if(maxX > 0 and minX < 0):
+    image = image[:,:maxX]
+    
+if(maxX > 0 and minX > 0):
+    image = image[:,minX:maxX]
 
 def makeDiskShapedKernel(width):
     """
@@ -288,12 +321,13 @@ if(gaussianBlurRadius > 0):
 else:
     blurredImage = image.copy()
 
-#The image is convolveld with a kernel of kernelDiskWidth +1 in size.
 
-kernel = makeDiskShapedKernel(kernelDiskWidth+1)
+
+kernel = makeDiskShapedKernel(kernelDiskWidth)
 
 #The dilation kernel has about the same size:
-dilationKernel = makeDiskShapedKernel(kernelDiskWidth)
+dilationKernel = makeDiskShapedKernel(dilationDiskWidth)
+
 
 #The background is what is subtractd from the image.
 backgroundImage = cv2.filter2D(np.array(image), -1, kernel/np.sum(kernel))
@@ -301,7 +335,7 @@ backgroundImage = cv2.filter2D(np.array(image), -1, kernel/np.sum(kernel))
 
 
 """
-The mask is the binary image after subtracting, thresholding, dilating and 
+The mask is the binary image after subtracting, thresholding, dilating, closing and 
 opening. mask is an array that has the same shape as the image. Each value is 0
 if the pixel is SELECTED and 1 if the pixel is NOT selected (legacy reasons).
 The output of this script are those regions of mask where the pixel value is 0
@@ -320,6 +354,8 @@ mask = np.clip(mask, binaryThreshold, binaryThreshold+1)-binaryThreshold
 binary = mask.copy()
 
 openingKernel = makeDiskShapedKernel(openingKernelSize)
+closingKernel = makeDiskShapedKernel(closingKernelSize)
+mask = cv2.morphologyEx(1.0*mask, cv2.MORPH_CLOSE, closingKernel.astype(np.uint8))
 mask = cv2.morphologyEx(1.0*mask, cv2.MORPH_OPEN, openingKernel.astype(np.uint8))
 
 mask = cv2.dilate(1.0*mask, np.uint8(dilationKernel), iterations = 1)
@@ -387,7 +423,7 @@ The selection of all ROIs is done, now crop:
 
 
 imagesOfTraces = []
-maskOfTraces = []
+maskOfTraces = np.zeros(mask.shape)
 
 copyOfMask = mask.copy()
 pixelsInArea = []
@@ -410,6 +446,7 @@ this script.
 """
 for i in range(maxI):
     for j in range(maxJ):
+        pixelsInArea = []
         if(copyOfMask[i][j] == selectPixelsWithValue):
             pixelsInArea.append([i, j])
 
@@ -435,6 +472,13 @@ for i in range(maxI):
                 print("pixelsInArea not large enough")
                 pixelsInArea = []
                 continue
+				
+			
+            if(area > maxArea):
+                print("pixelsInArea too large")
+                pixelsInArea = []
+                continue
+				
             p0 = [np.amin(np.array(pixelsInArea)[:,0]), np.amin(np.array(pixelsInArea)[:,1])]
             p1 = [np.amax(np.array(pixelsInArea)[:,0]), np.amax(np.array(pixelsInArea)[:,1])]
             
@@ -470,39 +514,23 @@ for i in range(maxI):
             if(aspectRatio < minAspectRatio):
                 print("Aspect ratio too small: %f < %f" % (aspectRatio, minAspectRatio))
                 pixelsInArea = []
-                continue   
-			
-            if(p0[0] < minX and minX != -1):
-                print("Particle too far to the left")
-                pixelsInArea = []
-                continue        
-                
-            if(p0[1] < minY and minY != -1):
-                print("Particle too far to the top or bottom")
-                pixelsInArea = []
-                continue 
-                
-            if(p1[0] > maxX and maxX != -1):
-                print("Particle too far to the right")
-                pixelsInArea = []
-                continue      
-                
-            if(p1[1] > maxY and maxY != -1):
-                print("Particle too far to the top or bottom")
-                pixelsInArea = []
-                continue    			
+                continue			
 			
             
             trace = np.zeros((p1[0]-p0[0]+1,p1[1]-p0[1]+1))
             for pixel in pixelsInArea:
                 trace[pixel[0]-p0[0]][pixel[1]-p0[1]] = np.array(image)[pixel[0]][pixel[1]]
-
+                
             mass = np.sum(trace)
             if(mass < minMass):
                 print("Intensity too small. %d < %d" % (mass, minMass))
                 pixelsInArea = []
                 continue    
 
+            if(mass > maxMass):
+                print("Intensity too large. %d > %d" % (mass, maxMass))
+                pixelsInArea = []
+                continue   
 				
 				
             print("Feature found with size %d and mass %d " % (area, mass))  				
@@ -511,6 +539,11 @@ for i in range(maxI):
             #trace = trace - 4095*np.array(mask)[p0[0]:p1[0], p0[1]:p1[1]].astype(np.uint16())
             #trace = np.clip(trace, 0, 65535).astype(np.uint16)
             imagesOfTraces.append(trace)  
+
+            for pixel in pixelsInArea:
+                maskOfTraces[pixel[0]][pixel[1]] = 1			
+			
+			
             
             if(mpl.get_backend() != "Agg"):
                 plt.figure()
@@ -557,7 +590,11 @@ except:
 exportMask = 255.0*mask
 exportMaskImage = Image.fromarray(exportMask.astype(np.uint8))
 exportMaskImage.save(folderPath + "detectedTraces\\mask.png")
-	
+
+exportMask = 255.0*maskOfTraces
+exportMaskImage = Image.fromarray(exportMask.astype(np.uint8))
+exportMaskImage.save(folderPath + "detectedTraces\\detectedParticlesMask.png")
+
 	
 	
 for traceNumber, traceImage in enumerate(imagesOfTraces):
