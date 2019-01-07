@@ -186,6 +186,7 @@ class trackUtils:
             print("Wrong background shape: ")
             print(background.shape)
             print(frames[0].shape)
+            return []
         maxFrames = len(frames)
         for i in range(maxFrames):
             framesWithoutBackground.append(np.subtract(frames[i], background))
@@ -335,7 +336,7 @@ class trackUtils:
         except:
             print("No mobility calculated.")
         trackingObject.links.to_csv(folder + "\\tracks" + str(trackingObject.runs) + ".csv")  
-
+        trackingObject.linksWithoutDriftCorrection.to_csv(folder + "\\tracksWithoutDriftCorrection" + str(trackingObject.runs) + ".csv")  
         return
 
     @staticmethod

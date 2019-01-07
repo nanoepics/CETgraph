@@ -46,7 +46,7 @@ if (folder[-3:] == ".h5"):
     folder = "".join([i for i in list])
     print(folder)
 else:
-    h5name = "data_withoutBG.h5"
+    h5name = "withoutBGUsingAllMeasurements.h5"
 
 """
 The number of subframes can be given as an argument to this script. This will

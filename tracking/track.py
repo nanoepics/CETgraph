@@ -109,7 +109,7 @@ class Tracking:
         self.minimumMSD = 0.05  # minimum mean square displacement for calculation D, because D is calculated for each particle individually, this parameter is not important
         self.maxFrameMemory = frameMemory  # If particle disappears, it will be a new unique particle after this number of frames
         self.useFrames = useFrames  # if < 0, all frames will be used.
-        self.minimumParticleLifetime = 5  # minimum number of frames a particle should be located. Otherwise it is deleted
+        self.minimumParticleLifetime = 20  # minimum number of frames a particle should be located. Otherwise it is deleted
         self.cameraFPS = FPS  # camera FPS if < 0, script will try to get from metadata file
         self.micronPerPixel = micronPerPixel  # pixel size in um
         self.removeBackgroundOffset = 50  # subtracts the image n frames before the current frame to remove bg
